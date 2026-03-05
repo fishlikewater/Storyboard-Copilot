@@ -125,14 +125,17 @@ export const UiTextAreaField = forwardRef<HTMLTextAreaElement, TextareaHTMLAttri
 
 UiTextAreaField.displayName = 'UiTextAreaField';
 
-export function UiInput({ className = '', ...props }: InputHTMLAttributes<HTMLInputElement>) {
-  return (
+export const UiInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
+  ({ className = '', ...props }, ref) => (
     <input
+      ref={ref}
       className={`w-full border ui-field px-3 py-2 text-sm text-text-dark outline-none transition-colors placeholder:text-text-muted/70 focus:border-accent ${className}`}
       {...props}
     />
-  );
-}
+  )
+);
+
+UiInput.displayName = 'UiInput';
 
 export const UiCheckbox = forwardRef<HTMLButtonElement, UiCheckboxProps>(
   ({ className = '', checked, onCheckedChange, onClick, ...props }, ref) => (

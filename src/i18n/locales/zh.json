@@ -180,7 +180,7 @@
     "storyboardGenDisableTextInImageDesc": "启用后，分镜生成提示词会追加“禁止添加描述文本”。",
     "useUploadFilenameAsNodeTitle": "上传节点自动使用文件名作为标题",
     "useUploadFilenameAsNodeTitleDesc": "启用后，新上传图片会默认使用文件名作为节点标题（仍可双击手动重命名）。",
-    "downloadPathPlaceholder": "输入目录路径，例如 D:\\\\Images\\\\Storyboard",
+    "downloadPathPlaceholder": "输入目录路径，例如 /Users/name/Pictures/Storyboard 或 D:\\\\Images\\\\Storyboard",
     "addPath": "添加路径",
     "chooseFolder": "选择文件夹",
     "noDownloadPresetPaths": "暂无预设路径"

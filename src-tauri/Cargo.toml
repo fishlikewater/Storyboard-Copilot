@@ -29,6 +29,8 @@ tracing-appender = "0.2"
 thiserror = "2"
 directories = "6"
 async-trait = "0.1"
+automod = "1.0"
+inventory = "0.3"
 rusqlite = { version = "0.32", features = ["bundled"] }
 md5 = "0.7"
 arboard = "3.4"
@@ -36,6 +38,7 @@ fast_image_resize = "6.0.0"
 imageproc = "0.26.1"
 ab_glyph = "0.2.32"
 png = "0.17"
+urlencoding = "2"
 
 [profile.dev]
 opt-level = 1

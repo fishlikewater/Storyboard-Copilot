@@ -37,6 +37,7 @@ export interface GenerateImagePayload {
   size: string;
   aspectRatio: string;
   referenceImages?: string[];
+  extraParams?: Record<string, unknown>;
 }
 
 export interface AiGateway {
@@ -77,6 +78,10 @@ export interface CanvasEventMap {
   'tool-dialog/close': undefined;
   'upload-node/reupload': {
     nodeId: string;
+  };
+  'upload-node/paste-image': {
+    nodeId: string;
+    file: File;
   };
 }
 

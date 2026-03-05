@@ -41,10 +41,6 @@ export const DisconnectableEdge = memo(function DisconnectableEdge(props: EdgePr
           strokeWidth: selected ? 2.4 : 1.9,
           ...style,
         }}
-        onDoubleClick={(event) => {
-          event.stopPropagation();
-          deleteEdge(id);
-        }}
       />
       {selected && (
         <EdgeLabelRenderer>

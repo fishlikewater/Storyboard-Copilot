@@ -3,9 +3,10 @@ import { persist } from 'zustand/middleware';
 
 export type UiRadiusPreset = 'compact' | 'default' | 'large';
 export type ThemeTonePreset = 'neutral' | 'warm' | 'cool';
+export type ProviderApiKeys = Record<string, string>;
 
 interface SettingsState {
-  apiKey: string;
+  apiKeys: ProviderApiKeys;
   downloadPresetPaths: string[];
   useUploadFilenameAsNodeTitle: boolean;
   storyboardGenKeepStyleConsistent: boolean;
@@ -13,7 +14,7 @@ interface SettingsState {
   uiRadiusPreset: UiRadiusPreset;
   themeTonePreset: ThemeTonePreset;
   accentColor: string;
-  setApiKey: (key: string) => void;
+  setProviderApiKey: (providerId: string, key: string) => void;
   setDownloadPresetPaths: (paths: string[]) => void;
   setUseUploadFilenameAsNodeTitle: (enabled: boolean) => void;
   setStoryboardGenKeepStyleConsistent: (enabled: boolean) => void;
@@ -33,10 +34,30 @@ function normalizeHexColor(input: string): string {
   return trimmed.startsWith('#') ? trimmed.toUpperCase() : `#${trimmed.toUpperCase()}`;
 }
 
+function normalizeApiKey(input: string): string {
+  return input.trim();
+}
+
+function normalizeApiKeys(input: ProviderApiKeys | null | undefined): ProviderApiKeys {
+  if (!input) {
+    return {};
+  }
+
+  return Object.entries(input).reduce<ProviderApiKeys>((acc, [providerId, key]) => {
+    const normalizedProviderId = providerId.trim();
+    if (!normalizedProviderId) {
+      return acc;
+    }
+
+    acc[normalizedProviderId] = normalizeApiKey(key);
+    return acc;
+  }, {});
+}
+
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
-      apiKey: '',
+      apiKeys: {},
       downloadPresetPaths: [],
       useUploadFilenameAsNodeTitle: true,
       storyboardGenKeepStyleConsistent: true,
@@ -44,7 +65,13 @@ export const useSettingsStore = create<SettingsState>()(
       uiRadiusPreset: 'default',
       themeTonePreset: 'neutral',
       accentColor: '#3B82F6',
-      setApiKey: (apiKey) => set({ apiKey }),
+      setProviderApiKey: (providerId, key) =>
+        set((state) => ({
+          apiKeys: {
+            ...state.apiKeys,
+            [providerId]: normalizeApiKey(key),
+          },
+        })),
       setDownloadPresetPaths: (paths) => {
         const uniquePaths = Array.from(
           new Set(paths.map((path) => path.trim()).filter((path) => path.length > 0))
@@ -62,6 +89,26 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'settings-storage',
+      version: 2,
+      migrate: (persistedState: unknown) => {
+        const state = (persistedState ?? {}) as {
+          apiKey?: string;
+          apiKeys?: ProviderApiKeys;
+        };
+
+        const migratedApiKeys = normalizeApiKeys(state.apiKeys);
+        if (Object.keys(migratedApiKeys).length > 0) {
+          return {
+            ...(persistedState as object),
+            apiKeys: migratedApiKeys,
+          };
+        }
+
+        return {
+          ...(persistedState as object),
+          apiKeys: state.apiKey ? { ppio: normalizeApiKey(state.apiKey) } : {},
+        };
+      },
     }
   )
 );

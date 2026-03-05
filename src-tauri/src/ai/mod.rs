@@ -1,12 +1,11 @@
 pub mod error;
 pub mod providers;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tracing::info;
 
 use error::AIError;
-use providers::PPIOProvider;
 
 #[derive(Debug, Clone)]
 pub struct GenerateRequest {
@@ -15,12 +14,25 @@ pub struct GenerateRequest {
     pub size: String,
     pub aspect_ratio: String,
     pub reference_images: Option<Vec<String>>,
+    pub extra_params: Option<HashMap<String, serde_json::Value>>,
 }
 
 #[async_trait::async_trait]
 pub trait AIProvider: Send + Sync {
     fn name(&self) -> &str;
     fn supports_model(&self, model: &str) -> bool;
+
+    fn list_models(&self) -> Vec<String> {
+        Vec::new()
+    }
+
+    async fn set_api_key(&self, _api_key: String) -> Result<(), AIError> {
+        Err(AIError::Provider(format!(
+            "Provider '{}' does not support API key configuration",
+            self.name()
+        )))
+    }
+
     async fn generate(&self, request: GenerateRequest) -> Result<String, AIError>;
 }
 
@@ -31,15 +43,10 @@ pub struct ProviderRegistry {
 
 impl ProviderRegistry {
     pub fn new() -> Self {
-        let mut registry = Self {
+        Self {
             providers: HashMap::new(),
             default_provider: None,
-        };
-
-        let ppio = Arc::new(PPIOProvider::new());
-        registry.register_provider(ppio);
-
-        registry
+        }
     }
 
     pub fn register_provider(&mut self, provider: Arc<dyn AIProvider>) {
@@ -62,13 +69,45 @@ impl ProviderRegistry {
     }
 
     pub fn list_providers(&self) -> Vec<String> {
-        self.providers.keys().cloned().collect()
+        let mut providers = self.providers.keys().cloned().collect::<Vec<String>>();
+        providers.sort();
+        providers
+    }
+
+    pub fn resolve_provider_for_model(&self, model: &str) -> Option<&Arc<dyn AIProvider>> {
+        if let Some((provider_id, _)) = model.split_once('/') {
+            if let Some(provider) = self.providers.get(provider_id) {
+                return Some(provider);
+            }
+        }
+
+        self.providers
+            .values()
+            .find(|provider| provider.supports_model(model))
     }
 
     pub fn supports_model(&self, model: &str) -> bool {
         self.providers
             .values()
             .any(|provider| provider.supports_model(model))
+    }
+
+    pub fn list_models(&self) -> Vec<String> {
+        let mut seen = HashSet::new();
+        let mut models = Vec::new();
+
+        for model in self
+            .providers
+            .values()
+            .flat_map(|provider| provider.list_models())
+        {
+            if seen.insert(model.clone()) {
+                models.push(model);
+            }
+        }
+
+        models.sort();
+        models
     }
 }
 

@@ -16,6 +16,7 @@ export const tauriAiGateway: AiGateway = {
       size: payload.size,
       aspect_ratio: payload.aspectRatio,
       reference_images: normalizedReferenceImages,
+      extra_params: payload.extraParams,
     });
   },
 };

@@ -62,6 +62,15 @@ impl AIProvider for PPIOProvider {
         self.model_registry.supports(model)
     }
 
+    fn list_models(&self) -> Vec<String> {
+        self.model_registry.list_models()
+    }
+
+    async fn set_api_key(&self, api_key: String) -> Result<(), AIError> {
+        PPIOProvider::set_api_key(self, api_key).await;
+        Ok(())
+    }
+
     async fn generate(&self, request: crate::ai::GenerateRequest) -> Result<String, AIError> {
         let key = self.api_key.read().await;
         let api_key = key

@@ -6,6 +6,7 @@ export interface GenerateRequest {
   size: string;
   aspect_ratio: string;
   reference_images?: string[];
+  extra_params?: Record<string, unknown>;
 }
 
 const BASE64_PREVIEW_HEAD = 96;
@@ -68,6 +69,7 @@ function sanitizeGenerateRequestForLog(request: GenerateRequest): Record<string,
     reference_images_preview: (request.reference_images ?? []).map((item) =>
       truncateBase64Like(item)
     ),
+    extra_params: request.extra_params ?? {},
   };
 }
 

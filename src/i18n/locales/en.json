@@ -180,7 +180,7 @@
     "storyboardGenDisableTextInImageDesc": "When enabled, storyboard generation prompt appends \"禁止添加描述文本\".",
     "useUploadFilenameAsNodeTitle": "Use uploaded filename as node title",
     "useUploadFilenameAsNodeTitleDesc": "When enabled, newly uploaded images use the file name as the node title by default (still editable via double-click).",
-    "downloadPathPlaceholder": "Input folder path, e.g. D:\\\\Images\\\\Storyboard",
+    "downloadPathPlaceholder": "Input folder path, e.g. /Users/name/Pictures/Storyboard or D:\\\\Images\\\\Storyboard",
     "addPath": "Add Path",
     "chooseFolder": "Choose Folder",
     "noDownloadPresetPaths": "No preset path yet"

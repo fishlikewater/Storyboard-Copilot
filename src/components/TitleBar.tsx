@@ -19,6 +19,9 @@ export function TitleBar({ onSettingsClick, showBackButton, onBackClick }: Title
 
   const appWindow = getCurrentWindow();
   const isZh = i18n.language.startsWith('zh');
+  const isMac =
+    typeof navigator !== 'undefined'
+    && /(Mac|iPhone|iPad|iPod)/i.test(`${navigator.platform} ${navigator.userAgent}`);
   const appTitle = t('app.title');
   const titleText = currentProjectName ? `${currentProjectName} - ${appTitle}` : appTitle;
 
@@ -59,7 +62,35 @@ export function TitleBar({ onSettingsClick, showBackButton, onBackClick }: Title
 
   return (
     <div className="h-10 flex items-center justify-between bg-surface-dark border-b border-border-dark select-none z-50 relative">
-      {/* 左侧拖拽区域 */}
+      {isMac ? (
+        <div className="flex items-center h-full pl-3 pr-2 gap-2" data-no-drag="true">
+          <button
+            type="button"
+            onMouseDown={(event) => event.stopPropagation()}
+            onClick={handleClose}
+            className="h-3 w-3 rounded-full bg-[#FF5F57] transition-opacity hover:opacity-80"
+            title={t('titleBar.close')}
+            aria-label={t('titleBar.close')}
+          />
+          <button
+            type="button"
+            onMouseDown={(event) => event.stopPropagation()}
+            onClick={handleMinimize}
+            className="h-3 w-3 rounded-full bg-[#FEBC2E] transition-opacity hover:opacity-80"
+            title={t('titleBar.minimize')}
+            aria-label={t('titleBar.minimize')}
+          />
+          <button
+            type="button"
+            onMouseDown={(event) => event.stopPropagation()}
+            onClick={handleMaximize}
+            className="h-3 w-3 rounded-full bg-[#28C840] transition-opacity hover:opacity-80"
+            title={t('titleBar.maximize')}
+            aria-label={t('titleBar.maximize')}
+          />
+        </div>
+      ) : null}
+
       <div
         className="flex-1 h-full flex items-center px-4 cursor-move"
         onMouseDown={handleDragStart}
@@ -120,34 +151,38 @@ export function TitleBar({ onSettingsClick, showBackButton, onBackClick }: Title
           <Settings className="w-4 h-4 text-text-muted" />
         </button>
 
-        <div className="w-px h-4 bg-border-dark mx-1" />
+        {!isMac ? (
+          <>
+            <div className="w-px h-4 bg-border-dark mx-1" />
 
-        <button
-          type="button"
-          onClick={handleMinimize}
-          className="h-full px-3 hover:bg-bg-dark transition-colors"
-          title={t('titleBar.minimize')}
-        >
-          <Minus className="w-4 h-4 text-text-muted hover:text-text-dark" />
-        </button>
+            <button
+              type="button"
+              onClick={handleMinimize}
+              className="h-full px-3 hover:bg-bg-dark transition-colors"
+              title={t('titleBar.minimize')}
+            >
+              <Minus className="w-4 h-4 text-text-muted hover:text-text-dark" />
+            </button>
 
-        <button
-          type="button"
-          onClick={handleMaximize}
-          className="h-full px-3 hover:bg-bg-dark transition-colors"
-          title={t('titleBar.maximize')}
-        >
-          <Maximize2 className="w-4 h-4 text-text-muted hover:text-text-dark" />
-        </button>
+            <button
+              type="button"
+              onClick={handleMaximize}
+              className="h-full px-3 hover:bg-bg-dark transition-colors"
+              title={t('titleBar.maximize')}
+            >
+              <Maximize2 className="w-4 h-4 text-text-muted hover:text-text-dark" />
+            </button>
 
-        <button
-          type="button"
-          onClick={handleClose}
-          className="h-full px-3 hover:bg-red-500 transition-colors group"
-          title={t('titleBar.close')}
-        >
-          <X className="w-4 h-4 text-text-muted group-hover:text-white" />
-        </button>
+            <button
+              type="button"
+              onClick={handleClose}
+              className="h-full px-3 hover:bg-red-500 transition-colors group"
+              title={t('titleBar.close')}
+            >
+              <X className="w-4 h-4 text-text-muted group-hover:text-white" />
+            </button>
+          </>
+        ) : null}
       </div>
     </div>
   );

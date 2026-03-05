@@ -10,7 +10,21 @@ pub struct PreparedRequest {
 }
 
 pub trait PPIOModelAdapter: Send + Sync {
-    fn matches(&self, model: &str) -> bool;
+    fn model_aliases(&self) -> &'static [&'static str];
+
+    fn canonical_model(&self) -> &'static str {
+        self.model_aliases()
+            .iter()
+            .find(|model| model.contains('/'))
+            .copied()
+            .or_else(|| self.model_aliases().first().copied())
+            .unwrap_or("unknown")
+    }
+
+    fn matches(&self, model: &str) -> bool {
+        self.model_aliases().iter().any(|alias| alias == &model)
+    }
+
     fn build_request(
         &self,
         request: &GenerateRequest,

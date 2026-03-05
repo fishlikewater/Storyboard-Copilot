@@ -35,15 +35,18 @@ impl Gemini31FlashAdapter {
 
 fn decode_file_url_path(value: &str) -> String {
     let raw = value.trim_start_matches("file://");
-    let normalized = if raw.starts_with('/')
-        && raw.len() > 2
-        && raw.as_bytes().get(2) == Some(&b':')
+    let decoded = urlencoding::decode(raw)
+        .map(|result| result.into_owned())
+        .unwrap_or_else(|_| raw.to_string());
+    let normalized = if decoded.starts_with('/')
+        && decoded.len() > 2
+        && decoded.as_bytes().get(2) == Some(&b':')
     {
-        &raw[1..]
+        &decoded[1..]
     } else {
-        raw
+        &decoded
     };
-    normalized.replace("%20", " ")
+    normalized.to_string()
 }
 
 fn resolve_image_base64_payload(source: &str) -> Option<String> {
@@ -82,11 +85,12 @@ impl Default for Gemini31FlashAdapter {
 }
 
 impl PPIOModelAdapter for Gemini31FlashAdapter {
-    fn matches(&self, model: &str) -> bool {
-        matches!(
-            model,
-            "ppio/gemini-3.1-flash" | "gemini-3.1-flash" | "gemini-3.1-flash-edit"
-        )
+    fn model_aliases(&self) -> &'static [&'static str] {
+        &[
+            "ppio/gemini-3.1-flash",
+            "gemini-3.1-flash",
+            "gemini-3.1-flash-edit",
+        ]
     }
 
     fn build_request(
@@ -161,5 +165,11 @@ impl PPIOModelAdapter for Gemini31FlashAdapter {
                 summary,
             })
         }
+    }
+}
+
+inventory::submit! {
+    crate::ai::providers::ppio::models::RegisteredPpioModel {
+        build: || Box::new(Gemini31FlashAdapter::new()),
     }
 }

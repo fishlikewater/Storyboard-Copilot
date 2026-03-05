@@ -6,12 +6,16 @@ import { useTranslation } from 'react-i18next';
 import {
   CANVAS_NODE_TYPES,
   DEFAULT_ASPECT_RATIO,
-  EXPORT_RESULT_NODE_MIN_HEIGHT,
   EXPORT_RESULT_NODE_MIN_WIDTH,
+  EXPORT_RESULT_NODE_MIN_HEIGHT,
   type CanvasNodeType,
   type ExportImageNodeData,
   type ImageEditNodeData,
 } from '@/features/canvas/domain/canvasNodes';
+import {
+  resolveMinEdgeFittedSize,
+  resolveResizeMinConstraintsByAspect,
+} from '@/features/canvas/application/imageNodeSizing';
 import {
   resolveImageDisplayUrl,
   shouldUseOriginalImageByZoom,
@@ -26,31 +30,6 @@ type ImageNodeProps = NodeProps & {
   data: ImageEditNodeData | ExportImageNodeData;
   selected?: boolean;
 };
-
-function toAspectRatioValue(aspectRatio: string): number {
-  const [rawWidth = '1', rawHeight = '1'] = aspectRatio.split(':');
-  const width = Number(rawWidth);
-  const height = Number(rawHeight);
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-    return 1;
-  }
-  return width / height;
-}
-
-function resolveCompactImageNodeSize(aspectRatio: string): { width: number; height: number } {
-  const ratio = Math.max(0.1, toAspectRatioValue(aspectRatio));
-  const widthFirst = {
-    width: EXPORT_RESULT_NODE_MIN_WIDTH,
-    height: Math.max(1, Math.round(EXPORT_RESULT_NODE_MIN_WIDTH / ratio)),
-  };
-  const heightFirst = {
-    width: Math.max(1, Math.round(EXPORT_RESULT_NODE_MIN_HEIGHT * ratio)),
-    height: EXPORT_RESULT_NODE_MIN_HEIGHT,
-  };
-  return widthFirst.width * widthFirst.height <= heightFirst.width * heightFirst.height
-    ? widthFirst
-    : heightFirst;
-}
 
 function resolveNodeDimension(value: number | undefined, fallback: number): number {
   if (typeof value === 'number' && Number.isFinite(value) && value > 1) {
@@ -72,12 +51,18 @@ export const ImageNode = memo(({ id, data, selected, type, width, height }: Imag
   const generationDurationMs =
     typeof data.generationDurationMs === 'number' ? data.generationDurationMs : 60000;
   const resolvedAspectRatio = data.aspectRatio || DEFAULT_ASPECT_RATIO;
-  const compactSize = resolveCompactImageNodeSize(resolvedAspectRatio);
+  const compactSize = resolveMinEdgeFittedSize(resolvedAspectRatio, {
+    minWidth: EXPORT_RESULT_NODE_MIN_WIDTH,
+    minHeight: EXPORT_RESULT_NODE_MIN_HEIGHT,
+  });
+  const resizeConstraints = resolveResizeMinConstraintsByAspect(resolvedAspectRatio, {
+    minWidth: EXPORT_RESULT_NODE_MIN_WIDTH,
+    minHeight: EXPORT_RESULT_NODE_MIN_HEIGHT,
+  });
+  const resizeMinWidth = resizeConstraints.minWidth;
+  const resizeMinHeight = resizeConstraints.minHeight;
   const resolvedWidth = resolveNodeDimension(width, compactSize.width);
   const resolvedHeight = resolveNodeDimension(height, compactSize.height);
-  const isWideImage = toAspectRatioValue(resolvedAspectRatio) >= EXPORT_RESULT_NODE_MIN_WIDTH / EXPORT_RESULT_NODE_MIN_HEIGHT;
-  const resizeMinWidth = isWideImage ? EXPORT_RESULT_NODE_MIN_WIDTH : 1;
-  const resizeMinHeight = isWideImage ? 1 : EXPORT_RESULT_NODE_MIN_HEIGHT;
   const resolvedTitle = useMemo(
     () => resolveNodeDisplayName(type as CanvasNodeType, data),
     [data, type]
@@ -134,6 +119,7 @@ export const ImageNode = memo(({ id, data, selected, type, width, height }: Imag
           ? <ImageIcon className="h-4 w-4" />
           : <Sparkles className="h-4 w-4" />}
         titleText={resolvedTitle}
+        titleClassName="inline-block max-w-[220px] truncate whitespace-nowrap align-bottom"
         editable
         onTitleChange={(nextTitle) => updateNodeData(id, { displayName: nextTitle })}
       />

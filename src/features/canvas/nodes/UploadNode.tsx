@@ -18,6 +18,10 @@ import {
   type UploadImageNodeData,
 } from '@/features/canvas/domain/canvasNodes';
 import {
+  resolveMinEdgeFittedSize,
+  resolveResizeMinConstraintsByAspect,
+} from '@/features/canvas/application/imageNodeSizing';
+import {
   isNodeUsingDefaultDisplayName,
   resolveNodeDisplayName,
 } from '@/features/canvas/domain/nodeDisplay';
@@ -25,6 +29,7 @@ import { canvasEventBus } from '@/features/canvas/application/canvasServices';
 import { NodeHeader, NODE_HEADER_FLOATING_POSITION_CLASS } from '@/features/canvas/ui/NodeHeader';
 import { NodeResizeHandle } from '@/features/canvas/ui/NodeResizeHandle';
 import {
+  isLikelyLocalImagePath,
   prepareNodeImage,
   readFileAsDataUrl,
   resolveImageDisplayUrl,
@@ -38,31 +43,6 @@ type UploadNodeProps = NodeProps & {
   data: UploadImageNodeData;
   selected?: boolean;
 };
-
-function toAspectRatioValue(aspectRatio: string): number {
-  const [rawWidth = '1', rawHeight = '1'] = aspectRatio.split(':');
-  const width = Number(rawWidth);
-  const height = Number(rawHeight);
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-    return 1;
-  }
-  return width / height;
-}
-
-function resolveCompactImageNodeSize(aspectRatio: string): { width: number; height: number } {
-  const ratio = Math.max(0.1, toAspectRatioValue(aspectRatio));
-  const widthFirst = {
-    width: EXPORT_RESULT_NODE_MIN_WIDTH,
-    height: Math.max(1, Math.round(EXPORT_RESULT_NODE_MIN_WIDTH / ratio)),
-  };
-  const heightFirst = {
-    width: Math.max(1, Math.round(EXPORT_RESULT_NODE_MIN_HEIGHT * ratio)),
-    height: EXPORT_RESULT_NODE_MIN_HEIGHT,
-  };
-  return widthFirst.width * widthFirst.height <= heightFirst.width * heightFirst.height
-    ? widthFirst
-    : heightFirst;
-}
 
 function resolveNodeDimension(value: number | undefined, fallback: number): number {
   if (typeof value === 'number' && Number.isFinite(value) && value > 1) {
@@ -79,12 +59,18 @@ export const UploadNode = memo(({ id, data, selected, width, height }: UploadNod
   const { zoom } = useViewport();
   const inputRef = useRef<HTMLInputElement>(null);
   const resolvedAspectRatio = data.aspectRatio || '1:1';
-  const compactSize = resolveCompactImageNodeSize(resolvedAspectRatio);
+  const compactSize = resolveMinEdgeFittedSize(resolvedAspectRatio, {
+    minWidth: EXPORT_RESULT_NODE_MIN_WIDTH,
+    minHeight: EXPORT_RESULT_NODE_MIN_HEIGHT,
+  });
   const resolvedWidth = resolveNodeDimension(width, compactSize.width);
   const resolvedHeight = resolveNodeDimension(height, compactSize.height);
-  const isWideImage = toAspectRatioValue(resolvedAspectRatio) >= EXPORT_RESULT_NODE_MIN_WIDTH / EXPORT_RESULT_NODE_MIN_HEIGHT;
-  const resizeMinWidth = isWideImage ? EXPORT_RESULT_NODE_MIN_WIDTH : 1;
-  const resizeMinHeight = isWideImage ? 1 : EXPORT_RESULT_NODE_MIN_HEIGHT;
+  const resizeConstraints = resolveResizeMinConstraintsByAspect(resolvedAspectRatio, {
+    minWidth: EXPORT_RESULT_NODE_MIN_WIDTH,
+    minHeight: EXPORT_RESULT_NODE_MIN_HEIGHT,
+  });
+  const resizeMinWidth = resizeConstraints.minWidth;
+  const resizeMinHeight = resizeConstraints.minHeight;
   const resolvedTitle = useMemo(() => {
     const sourceFileName = typeof data.sourceFileName === 'string' ? data.sourceFileName.trim() : '';
     if (
@@ -102,9 +88,13 @@ export const UploadNode = memo(({ id, data, selected, width, height }: UploadNod
     async (file: File) => {
       const tauriFilePath =
         (file as File & { path?: string }).path;
+      const normalizedPath = typeof tauriFilePath === 'string' ? tauriFilePath.trim() : '';
+      const canUseLocalPath =
+        normalizedPath.length > 0
+        && (isLikelyLocalImagePath(normalizedPath) || normalizedPath.toLowerCase().startsWith('file://'));
       const source =
-        typeof tauriFilePath === 'string' && tauriFilePath.trim().length > 0
-          ? tauriFilePath
+        canUseLocalPath
+          ? normalizedPath
           : await readFileAsDataUrl(file);
 
       const prepared = await prepareNodeImage(source);
@@ -156,6 +146,15 @@ export const UploadNode = memo(({ id, data, selected, width, height }: UploadNod
       inputRef.current?.click();
     });
   }, [id]);
+
+  useEffect(() => {
+    return canvasEventBus.subscribe('upload-node/paste-image', ({ nodeId, file }) => {
+      if (nodeId !== id || !file.type.startsWith('image/')) {
+        return;
+      }
+      void processFile(file);
+    });
+  }, [id, processFile]);
 
   const handleNodeClick = useCallback(() => {
     setSelectedNode(id);

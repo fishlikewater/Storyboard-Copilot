@@ -35,6 +35,11 @@ import {
 import { EXPORT_RESULT_DISPLAY_NAME } from '@/features/canvas/domain/nodeDisplay';
 import { nodeCatalog } from '@/features/canvas/application/nodeCatalog';
 import { canvasNodeFactory } from '@/features/canvas/application/canvasServices';
+import {
+  ensureAtLeastOneMinEdge,
+  resolveMinEdgeFittedSize,
+  resolveSizeInsideTargetBox,
+} from '@/features/canvas/application/imageNodeSizing';
 
 export type {
   ActiveToolDialog,
@@ -302,16 +307,6 @@ function getNodeSize(node: CanvasNode): { width: number; height: number } {
   };
 }
 
-function parseAspectRatioValue(aspectRatio: string): number {
-  const [rawWidth = '1', rawHeight = '1'] = aspectRatio.split(':');
-  const width = Number(rawWidth);
-  const height = Number(rawHeight);
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-    return 1;
-  }
-  return width / height;
-}
-
 function isImageAutoResizableType(type: CanvasNodeType): boolean {
   return type === CANVAS_NODE_TYPES.upload
     || type === CANVAS_NODE_TYPES.imageEdit
@@ -334,47 +329,32 @@ function withManualSizeLock(node: CanvasNode): CanvasNode {
 }
 
 function resolveAutoImageNodeDimensions(
-  aspectRatio: string
+  aspectRatio: string,
+  options?: {
+    minWidth?: number;
+    minHeight?: number;
+  }
 ): { width: number; height: number } {
-  const aspectValue = Math.max(0.1, parseAspectRatioValue(aspectRatio));
-  const widthFirst = {
-    width: EXPORT_RESULT_NODE_MIN_WIDTH,
-    height: Math.max(1, Math.round(EXPORT_RESULT_NODE_MIN_WIDTH / aspectValue)),
-  };
-  const heightFirst = {
-    width: Math.max(1, Math.round(EXPORT_RESULT_NODE_MIN_HEIGHT * aspectValue)),
-    height: EXPORT_RESULT_NODE_MIN_HEIGHT,
-  };
-
-  const widthFirstArea = widthFirst.width * widthFirst.height;
-  const heightFirstArea = heightFirst.width * heightFirst.height;
-  const chosen = widthFirstArea <= heightFirstArea ? widthFirst : heightFirst;
-  return {
-    width: Math.max(IMAGE_NODE_VISUAL_MIN_EDGE, chosen.width),
-    height: Math.max(IMAGE_NODE_VISUAL_MIN_EDGE, chosen.height),
-  };
+  const minWidth = options?.minWidth ?? EXPORT_RESULT_NODE_MIN_WIDTH;
+  const minHeight = options?.minHeight ?? EXPORT_RESULT_NODE_MIN_HEIGHT;
+  return resolveMinEdgeFittedSize(aspectRatio, { minWidth, minHeight });
 }
 
-function resolveGeneratedImageNodeDimensions(aspectRatio: string): { width: number; height: number } {
-  const ratio = Math.max(0.1, parseAspectRatioValue(aspectRatio));
-  const targetWidth = EXPORT_RESULT_NODE_DEFAULT_WIDTH;
-  const targetHeight = EXPORT_RESULT_NODE_LAYOUT_HEIGHT;
-  const targetRatio = targetWidth / Math.max(1, targetHeight);
-
-  let width = targetWidth;
-  let height = targetHeight;
-  if (ratio >= targetRatio) {
-    width = targetWidth;
-    height = Math.round(width / ratio);
-  } else {
-    height = targetHeight;
-    width = Math.round(height * ratio);
+function resolveGeneratedImageNodeDimensions(
+  aspectRatio: string,
+  options?: {
+    minWidth?: number;
+    minHeight?: number;
   }
+): { width: number; height: number } {
+  const size = resolveSizeInsideTargetBox(aspectRatio, {
+    width: EXPORT_RESULT_NODE_DEFAULT_WIDTH,
+    height: EXPORT_RESULT_NODE_LAYOUT_HEIGHT,
+  });
+  const minWidth = options?.minWidth ?? IMAGE_NODE_VISUAL_MIN_EDGE;
+  const minHeight = options?.minHeight ?? IMAGE_NODE_VISUAL_MIN_EDGE;
 
-  return {
-    width: Math.max(IMAGE_NODE_VISUAL_MIN_EDGE, width),
-    height: Math.max(IMAGE_NODE_VISUAL_MIN_EDGE, height),
-  };
+  return ensureAtLeastOneMinEdge(size, { minWidth, minHeight });
 }
 
 function resolveDerivedAspectRatio(
@@ -442,7 +422,12 @@ function maybeApplyImageAutoResize(node: CanvasNode, patch: Partial<CanvasNodeDa
   }
 
   const nextAspectRatio = patchData.aspectRatio ?? nodeData.aspectRatio ?? DEFAULT_ASPECT_RATIO;
-  const nextSize = resolveAutoImageNodeDimensions(nextAspectRatio);
+  const nextSize = node.type === CANVAS_NODE_TYPES.exportImage
+    ? resolveAutoImageNodeDimensions(nextAspectRatio, {
+      minWidth: EXPORT_RESULT_NODE_MIN_WIDTH,
+      minHeight: EXPORT_RESULT_NODE_MIN_HEIGHT,
+    })
+    : resolveAutoImageNodeDimensions(nextAspectRatio);
 
   return {
     ...node,
@@ -919,7 +904,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const state = get();
     const sourceNode = state.nodes.find((node) => node.id === sourceNodeId);
     const resolvedAspectRatio = resolveDerivedAspectRatio(sourceNode, aspectRatio);
-    const derivedSize = resolveGeneratedImageNodeDimensions(resolvedAspectRatio);
+    const derivedSize = resolveGeneratedImageNodeDimensions(resolvedAspectRatio, {
+      minWidth: EXPORT_RESULT_NODE_MIN_WIDTH,
+      minHeight: EXPORT_RESULT_NODE_MIN_HEIGHT,
+    });
     const position = state.findNodePosition(
       sourceNodeId,
       derivedSize.width,
@@ -1004,6 +992,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           return node;
         }
 
+        const hasDataChange = Object.entries(data).some(([key, nextValue]) => {
+          const previousValue = (node.data as Record<string, unknown>)[key];
+          return !Object.is(previousValue, nextValue);
+        });
+        if (!hasDataChange) {
+          return node;
+        }
+
         const mergedData = {
           ...node.data,
           ...data,
@@ -1072,6 +1068,16 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
         const nextFrames = node.data.frames.map((frame) => {
           if (frame.id !== frameId) {
+            return frame;
+          }
+
+          const patchEntries = Object.entries(data) as Array<
+            [keyof StoryboardFrameItem, StoryboardFrameItem[keyof StoryboardFrameItem]]
+          >;
+          const hasFrameChange = patchEntries.some(([key, nextValue]) =>
+            !Object.is(frame[key], nextValue)
+          );
+          if (!hasFrameChange) {
             return frame;
           }
 

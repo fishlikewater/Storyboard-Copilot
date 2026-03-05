@@ -1,11 +1,12 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import type { Viewport } from '@xyflow/react';
-import type {
-  CanvasEdge,
-  CanvasHistoryState,
-  CanvasNode,
-  CanvasNodeData,
+import {
+  useCanvasStore,
+  type CanvasEdge,
+  type CanvasHistoryState,
+  type CanvasNode,
+  type CanvasNodeData,
 } from './canvasStore';
 import {
   deleteProjectRecord,
@@ -403,7 +404,11 @@ function clearQueuedViewportUpsert(projectId: string): void {
   queuedViewportUpserts.delete(projectId);
 }
 
-function flushProjectUpsert(projectId: string): void {
+interface FlushProjectUpsertOptions {
+  bypassIdle?: boolean;
+}
+
+function flushProjectUpsert(projectId: string, options?: FlushProjectUpsertOptions): void {
   if (deletingProjectIds.has(projectId) || projectUpsertsInFlight.has(projectId)) {
     return;
   }
@@ -428,7 +433,7 @@ function flushProjectUpsert(projectId: string): void {
     }
   };
 
-  scheduleIdlePersist(() => {
+  const executePersist = () => {
     if (deletingProjectIds.has(projectId)) {
       settle();
       return;
@@ -440,7 +445,14 @@ function flushProjectUpsert(projectId: string): void {
         console.error('Failed to persist project record', error);
       })
       .finally(settle);
-  });
+  };
+
+  if (options?.bypassIdle) {
+    executePersist();
+    return;
+  }
+
+  scheduleIdlePersist(executePersist);
 }
 
 function queueProjectUpsert(project: Project, options?: PersistProjectOptions): void {
@@ -456,7 +468,7 @@ function queueProjectUpsert(project: Project, options?: PersistProjectOptions): 
 
   const debounceMs = options?.immediate ? 0 : (options?.debounceMs ?? UPSERT_DEBOUNCE_MS);
   if (debounceMs <= 0) {
-    flushProjectUpsert(projectId);
+    flushProjectUpsert(projectId, { bypassIdle: true });
     return;
   }
 
@@ -738,11 +750,39 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   closeProject: () => {
     openProjectRequestSeq += 1;
-    set({
+    const { currentProjectId, currentProject } = get();
+    let persistedSummary: ProjectSummary | null = null;
+
+    if (currentProjectId && currentProject && currentProject.id === currentProjectId) {
+      const canvasState = useCanvasStore.getState();
+      const nextProject: Project = {
+        ...currentProject,
+        nodes: canvasState.nodes,
+        edges: canvasState.edges,
+        viewport: canvasState.currentViewport ?? currentProject.viewport ?? DEFAULT_VIEWPORT,
+        history: canvasState.history ?? currentProject.history ?? createEmptyHistory(),
+        nodeCount: canvasState.nodes.length,
+        updatedAt: Date.now(),
+      };
+
+      persistedSummary = {
+        id: nextProject.id,
+        name: nextProject.name,
+        createdAt: nextProject.createdAt,
+        updatedAt: nextProject.updatedAt,
+        nodeCount: nextProject.nodeCount,
+      };
+      persistProject(nextProject, { immediate: true });
+    }
+
+    set((state) => ({
+      projects: persistedSummary
+        ? updateProjectSummary(state.projects, persistedSummary)
+        : state.projects,
       currentProjectId: null,
       currentProject: null,
       isOpeningProject: false,
-    });
+    }));
   },
 
   getCurrentProject: () => {

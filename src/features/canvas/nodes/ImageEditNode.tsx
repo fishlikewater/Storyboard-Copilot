@@ -215,6 +215,8 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
   const rootRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const promptHighlightRef = useRef<HTMLDivElement>(null);
+  const [promptDraft, setPromptDraft] = useState(() => data.prompt ?? '');
+  const promptDraftRef = useRef(promptDraft);
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [pickerCursor, setPickerCursor] = useState<number | null>(null);
   const [pickerActiveIndex, setPickerActiveIndex] = useState(0);
@@ -227,7 +229,7 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
   const addNode = useCanvasStore((state) => state.addNode);
   const findNodePosition = useCanvasStore((state) => state.findNodePosition);
   const addEdge = useCanvasStore((state) => state.addEdge);
-  const apiKey = useSettingsStore((state) => state.apiKey);
+  const apiKeys = useSettingsStore((state) => state.apiKeys);
 
   const incomingImages = useMemo(
     () => graphImageResolver.collectInputImages(id, nodes, edges),
@@ -250,6 +252,7 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
     const modelId = data.model ?? DEFAULT_IMAGE_MODEL_ID;
     return getImageModel(modelId);
   }, [data.model]);
+  const providerApiKey = apiKeys[selectedModel.providerId] ?? '';
 
   const selectedResolution = useMemo(
     () =>
@@ -290,6 +293,19 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
 
   const resolvedWidth = Math.max(IMAGE_EDIT_NODE_MIN_WIDTH, Math.round(width ?? IMAGE_EDIT_NODE_DEFAULT_WIDTH));
   const resolvedHeight = Math.max(IMAGE_EDIT_NODE_MIN_HEIGHT, Math.round(height ?? IMAGE_EDIT_NODE_DEFAULT_HEIGHT));
+
+  useEffect(() => {
+    const externalPrompt = data.prompt ?? '';
+    if (externalPrompt !== promptDraftRef.current) {
+      promptDraftRef.current = externalPrompt;
+      setPromptDraft(externalPrompt);
+    }
+  }, [data.prompt]);
+
+  const commitPromptDraft = useCallback((nextPrompt: string) => {
+    promptDraftRef.current = nextPrompt;
+    updateNodeData(id, { prompt: nextPrompt });
+  }, [id, updateNodeData]);
 
   useEffect(() => {
     if (data.model !== selectedModel.id) {
@@ -342,13 +358,13 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
   }, []);
 
   const handleGenerate = useCallback(async () => {
-    const prompt = data.prompt.replace(/@(?=图\d+)/g, '').trim();
+    const prompt = promptDraft.replace(/@(?=图\d+)/g, '').trim();
     if (!prompt) {
       setError(t('node.imageEdit.promptRequired'));
       return;
     }
 
-    if (!apiKey) {
+    if (!providerApiKey) {
       setError(t('node.imageEdit.apiKeyRequired'));
       return;
     }
@@ -377,7 +393,7 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
     addEdge(id, newNodeId);
 
     try {
-      await canvasAiGateway.setApiKey('ppio', apiKey);
+      await canvasAiGateway.setApiKey(selectedModel.providerId, providerApiKey);
 
       let resolvedRequestAspectRatio = selectedAspectRatio.value;
       if (resolvedRequestAspectRatio === AUTO_REQUEST_ASPECT_RATIO) {
@@ -403,6 +419,7 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
         size: selectedResolution.value,
         aspectRatio: resolvedRequestAspectRatio,
         referenceImages: incomingImages,
+        extraParams: data.extraParams,
       });
 
       const prepared = await prepareNodeImage(resultUrl);
@@ -423,14 +440,16 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
   }, [
     addNode,
     addEdge,
-    apiKey,
+    providerApiKey,
     findNodePosition,
-    data.prompt,
+    promptDraft,
+    data.extraParams,
     id,
     incomingImages,
     requestResolution.requestModel,
     selectedAspectRatio.value,
     selectedModel.expectedDurationMs,
+    selectedModel.providerId,
     selectedResolution.value,
     supportedAspectRatioValues,
     t,
@@ -448,11 +467,12 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
 
   const insertImageReference = useCallback((imageIndex: number) => {
     const marker = `@图${imageIndex + 1}`;
-    const currentPrompt = data.prompt;
+    const currentPrompt = promptDraftRef.current;
     const cursor = pickerCursor ?? currentPrompt.length;
     const nextPrompt = `${currentPrompt.slice(0, cursor)}${marker}${currentPrompt.slice(cursor)}`;
 
-    updateNodeData(id, { prompt: nextPrompt });
+    setPromptDraft(nextPrompt);
+    commitPromptDraft(nextPrompt);
     setShowImagePicker(false);
     setPickerCursor(null);
     setPickerActiveIndex(0);
@@ -463,7 +483,7 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
       promptRef.current?.setSelectionRange(nextCursor, nextCursor);
       syncPromptHighlightScroll();
     });
-  }, [data.prompt, id, pickerCursor, updateNodeData]);
+  }, [commitPromptDraft, pickerCursor]);
 
   const handlePromptKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (showImagePicker && incomingImages.length > 0) {
@@ -490,7 +510,7 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
 
     if (event.key === '@' && incomingImages.length > 0) {
       event.preventDefault();
-      const cursor = event.currentTarget.selectionStart ?? data.prompt.length;
+      const cursor = event.currentTarget.selectionStart ?? promptDraftRef.current.length;
       setPickerAnchor(resolvePickerAnchor(rootRef.current, event.currentTarget, cursor));
       setPickerCursor(cursor);
       setShowImagePicker(true);
@@ -540,14 +560,18 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
             className="pointer-events-none absolute inset-0 overflow-auto text-sm leading-6 text-text-dark [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             <div className="min-h-full whitespace-pre-wrap break-words px-1 py-0.5">
-              {renderPromptWithHighlights(data.prompt)}
+              {renderPromptWithHighlights(promptDraft)}
             </div>
           </div>
 
           <textarea
             ref={promptRef}
-            value={data.prompt}
-            onChange={(event) => updateNodeData(id, { prompt: event.target.value })}
+            value={promptDraft}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              setPromptDraft(nextValue);
+              commitPromptDraft(nextValue);
+            }}
             onKeyDown={handlePromptKeyDown}
             onScroll={syncPromptHighlightScroll}
             onMouseDown={(event) => event.stopPropagation()}
@@ -599,12 +623,18 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
           selectedResolution={selectedResolution}
           selectedAspectRatio={selectedAspectRatio}
           aspectRatioOptions={aspectRatioOptions}
-          onModelChange={(modelId) => updateNodeData(id, { model: modelId })}
+          onModelChange={(modelId) => {
+            updateNodeData(id, { model: modelId });
+          }}
           onResolutionChange={(resolution) =>
-            updateNodeData(id, { size: resolution as ImageSize })
+            {
+              updateNodeData(id, { size: resolution as ImageSize });
+            }
           }
           onAspectRatioChange={(aspectRatio) =>
-            updateNodeData(id, { requestAspectRatio: aspectRatio })
+            {
+              updateNodeData(id, { requestAspectRatio: aspectRatio });
+            }
           }
           triggerSize="sm"
           chipClassName={NODE_CONTROL_CHIP_CLASS}

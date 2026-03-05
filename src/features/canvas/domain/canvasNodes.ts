@@ -74,6 +74,7 @@ export interface ImageEditNodeData extends NodeImageData {
   model: string;
   size: ImageSize;
   requestAspectRatio?: string;
+  extraParams?: Record<string, unknown>;
   isGenerating?: boolean;
   generationStartedAt?: number | null;
   generationDurationMs?: number;
@@ -126,6 +127,7 @@ export interface StoryboardGenNodeData {
   model: string;
   size: ImageSize;
   requestAspectRatio: string;
+  extraParams?: Record<string, unknown>;
   imageUrl: string | null;
   previewImageUrl?: string | null;
   aspectRatio: string;

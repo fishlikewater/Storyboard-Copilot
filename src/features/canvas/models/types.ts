@@ -16,6 +16,20 @@ export interface ResolutionOption {
   label: string;
 }
 
+export type ExtraParamType = 'boolean' | 'enum' | 'number' | 'string';
+
+export interface ExtraParamDefinition {
+  key: string;
+  label: string;
+  type: ExtraParamType;
+  description?: string;
+  defaultValue?: boolean | number | string;
+  options?: Array<{ value: string; label: string }>;
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
 export interface ImageModelDefinition {
   id: string;
   mediaType: 'image';
@@ -28,6 +42,8 @@ export interface ImageModelDefinition {
   defaultResolution: string;
   aspectRatios: AspectRatioOption[];
   resolutions: ResolutionOption[];
+  extraParamsSchema?: ExtraParamDefinition[];
+  defaultExtraParams?: Record<string, unknown>;
   resolveRequest: (context: { referenceImageCount: number }) => {
     requestModel: string;
     modeLabel: string;

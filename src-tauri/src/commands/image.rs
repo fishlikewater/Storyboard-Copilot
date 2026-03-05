@@ -998,6 +998,23 @@ fn extension_from_path_like(value: &str) -> Option<String> {
     Some(ext)
 }
 
+fn decode_file_url_path(value: &str) -> String {
+    let raw = value.trim_start_matches("file://");
+    let decoded = urlencoding::decode(raw)
+        .map(|result| result.into_owned())
+        .unwrap_or_else(|_| raw.to_string());
+
+    if cfg!(target_os = "windows")
+        && decoded.starts_with('/')
+        && decoded.len() > 2
+        && decoded.as_bytes().get(2) == Some(&b':')
+    {
+        decoded[1..].to_string()
+    } else {
+        decoded
+    }
+}
+
 fn parse_data_url(source: &str) -> Result<(Vec<u8>, String), String> {
     let (meta, payload) = source
         .split_once(',')
@@ -1128,7 +1145,7 @@ async fn resolve_source_bytes(source: &str) -> Result<(Vec<u8>, String), String>
     }
 
     if source.starts_with("file://") {
-        let file_path = source.trim_start_matches("file://");
+        let file_path = decode_file_url_path(source);
         let local_path = PathBuf::from(file_path);
         let bytes = std::fs::read(&local_path)
             .map_err(|e| format!("Failed to read file:// image source: {}", e))?;

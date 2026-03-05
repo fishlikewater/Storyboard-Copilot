@@ -69,7 +69,10 @@ export const TextAnnotationNode = memo(({
         <textarea
           autoFocus
           value={content}
-          onChange={(event) => updateNodeData(id, { content: event.target.value })}
+          onChange={(event) => {
+            const nextValue = event.target.value;
+            updateNodeData(id, { content: nextValue });
+          }}
           placeholder={t('node.textAnnotation.placeholder')}
           className="nodrag nowheel h-full w-full resize-none border-none bg-transparent px-1 py-0.5 text-sm leading-6 text-text-dark outline-none placeholder:text-text-muted/70"
         />

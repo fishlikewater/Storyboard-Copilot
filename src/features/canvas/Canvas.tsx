@@ -122,6 +122,46 @@ function cloneNodeData<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+function isTypingTarget(target: EventTarget | null): boolean {
+  const element = target as HTMLElement | null;
+  if (!element) {
+    return false;
+  }
+  const tagName = element.tagName.toLowerCase();
+  return tagName === 'input' || tagName === 'textarea' || element.isContentEditable;
+}
+
+function resolveClipboardImageFile(event: ClipboardEvent): File | null {
+  const clipboardItems = event.clipboardData?.items;
+  if (!clipboardItems) {
+    return null;
+  }
+
+  for (const item of Array.from(clipboardItems)) {
+    if (!item.type.startsWith('image/')) {
+      continue;
+    }
+
+    const file = item.getAsFile();
+    if (!file) {
+      continue;
+    }
+
+    const existingName = typeof file.name === 'string' ? file.name.trim() : '';
+    if (existingName) {
+      return file;
+    }
+
+    const subtype = item.type.split('/')[1]?.split('+')[0] || 'png';
+    return new File([file], `pasted-image.${subtype}`, {
+      type: file.type || item.type,
+      lastModified: Date.now(),
+    });
+  }
+
+  return null;
+}
+
 function resolveAllowedNodeTypes(handleType: HandleType): CanvasNodeType[] {
   return getConnectMenuNodeTypes(handleType);
 }
@@ -194,6 +234,7 @@ export function Canvas() {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const copiedSnapshotRef = useRef<ClipboardSnapshot | null>(null);
   const pasteIterationRef = useRef(0);
+  const pasteImageHandledRef = useRef(false);
   const duplicateNodesRef = useRef<((sourceNodeIds: string[]) => string | null) | null>(null);
   const altDragCopyRef = useRef<{
     sourceNodeIds: string[];
@@ -204,6 +245,8 @@ export function Canvas() {
 
   const nodes = useCanvasStore((state) => state.nodes);
   const edges = useCanvasStore((state) => state.edges);
+  const history = useCanvasStore((state) => state.history);
+  const dragHistorySnapshot = useCanvasStore((state) => state.dragHistorySnapshot);
   const applyNodesChange = useCanvasStore((state) => state.onNodesChange);
   const applyEdgesChange = useCanvasStore((state) => state.onEdgesChange);
   const connectNodes = useCanvasStore((state) => state.onConnect);
@@ -211,6 +254,7 @@ export function Canvas() {
   const addNode = useCanvasStore((state) => state.addNode);
   const setSelectedNode = useCanvasStore((state) => state.setSelectedNode);
   const selectedNodeId = useCanvasStore((state) => state.selectedNodeId);
+  const deleteEdge = useCanvasStore((state) => state.deleteEdge);
   const deleteNode = useCanvasStore((state) => state.deleteNode);
   const deleteNodes = useCanvasStore((state) => state.deleteNodes);
   const groupNodes = useCanvasStore((state) => state.groupNodes);
@@ -304,6 +348,14 @@ export function Canvas() {
   }, [getCurrentProject, persistCanvasSnapshot, reactFlowInstance, setCanvasData, setViewportState]);
 
   useEffect(() => {
+    if (isRestoringCanvasRef.current || dragHistorySnapshot) {
+      return;
+    }
+
+    scheduleCanvasPersist();
+  }, [nodes, edges, history, dragHistorySnapshot, scheduleCanvasPersist]);
+
+  useEffect(() => {
     const element = wrapperRef.current;
     if (!element) {
       return;
@@ -379,6 +431,16 @@ export function Canvas() {
     [applyEdgesChange, scheduleCanvasPersist]
   );
 
+  const handleEdgeDoubleClick = useCallback(
+    (event: ReactMouseEvent, edge: CanvasEdge) => {
+      event.preventDefault();
+      event.stopPropagation();
+      deleteEdge(edge.id);
+      scheduleCanvasPersist(0);
+    },
+    [deleteEdge, scheduleCanvasPersist]
+  );
+
   const handleConnect = useCallback(
     (connection: Connection) => {
       if (!canNodeBeManualConnectionSource(connection.source, nodes)) {
@@ -417,6 +479,16 @@ export function Canvas() {
     () => nodes.filter((node) => Boolean(node.selected)).map((node) => node.id),
     [nodes]
   );
+  const selectedUploadNodeId = useMemo(() => {
+    if (selectedNodeIds.length !== 1) {
+      return null;
+    }
+    const selectedNode = nodes.find((node) => node.id === selectedNodeIds[0]);
+    if (!selectedNode || selectedNode.type !== CANVAS_NODE_TYPES.upload) {
+      return null;
+    }
+    return selectedNode.id;
+  }, [nodes, selectedNodeIds]);
 
   useEffect(() => {
     if (selectedNodeIds.length === 1) {
@@ -432,18 +504,35 @@ export function Canvas() {
   }, [selectedNodeId, selectedNodeIds, setSelectedNode]);
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target) {
-        const tagName = target.tagName.toLowerCase();
-        const isTypingElement =
-          tagName === 'input' ||
-          tagName === 'textarea' ||
-          target.isContentEditable;
+    const handlePaste = (event: ClipboardEvent) => {
+      pasteImageHandledRef.current = false;
+      if (!selectedUploadNodeId || isTypingTarget(event.target)) {
+        return;
+      }
 
-        if (isTypingElement) {
-          return;
-        }
+      const imageFile = resolveClipboardImageFile(event);
+      if (!imageFile) {
+        return;
+      }
+
+      event.preventDefault();
+      pasteImageHandledRef.current = true;
+      canvasEventBus.publish('upload-node/paste-image', {
+        nodeId: selectedUploadNodeId,
+        file: imageFile,
+      });
+    };
+
+    document.addEventListener('paste', handlePaste);
+    return () => {
+      document.removeEventListener('paste', handlePaste);
+    };
+  }, [selectedUploadNodeId]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isTypingTarget(event.target)) {
+        return;
       }
 
       const commandPressed = event.ctrlKey || event.metaKey;
@@ -470,6 +559,23 @@ export function Canvas() {
       }
 
       if (isPaste) {
+        if (selectedUploadNodeId) {
+          pasteImageHandledRef.current = false;
+          window.setTimeout(() => {
+            if (pasteImageHandledRef.current) {
+              pasteImageHandledRef.current = false;
+              return;
+            }
+
+            if (!copiedSnapshotRef.current || copiedSnapshotRef.current.nodes.length === 0) {
+              return;
+            }
+
+            void duplicateNodesRef.current?.(copiedSnapshotRef.current.nodes.map((node) => node.id));
+          }, 0);
+          return;
+        }
+
         if (!copiedSnapshotRef.current || copiedSnapshotRef.current.nodes.length === 0) {
           return;
         }
@@ -536,6 +642,7 @@ export function Canvas() {
     undo,
     redo,
     scheduleCanvasPersist,
+    selectedUploadNodeId,
   ]);
 
   const openNodeMenuAtClientPosition = useCallback((clientX: number, clientY: number) => {
@@ -1137,6 +1244,7 @@ export function Canvas() {
         edges={edges}
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
+        onEdgeDoubleClick={handleEdgeDoubleClick}
         onConnect={handleConnect}
         onConnectStart={handleConnectStart}
         onConnectEnd={handleConnectEnd}
@@ -1157,6 +1265,7 @@ export function Canvas() {
         selectionMode={SelectionMode.Partial}
         multiSelectionKeyCode={['Control', 'Meta']}
         selectionKeyCode={['Control', 'Meta']}
+        deleteKeyCode={null}
         onlyRenderVisibleElements
         zoomOnDoubleClick={false}
         proOptions={{ hideAttribution: true }}

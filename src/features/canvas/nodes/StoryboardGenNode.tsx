@@ -249,6 +249,35 @@ function renderFrameDescriptionWithHighlights(description: string): ReactNode {
   return segments;
 }
 
+function buildFrameDescriptionDrafts(
+  frames: StoryboardGenNodeData['frames']
+): Record<string, string> {
+  const drafts: Record<string, string> = {};
+  for (const frame of frames) {
+    drafts[frame.id] = frame.description;
+  }
+  return drafts;
+}
+
+function areFrameDescriptionDraftsEqual(
+  left: Record<string, string>,
+  right: Record<string, string>
+): boolean {
+  const leftEntries = Object.entries(left);
+  const rightEntries = Object.entries(right);
+  if (leftEntries.length !== rightEntries.length) {
+    return false;
+  }
+
+  for (const [key, value] of leftEntries) {
+    if (right[key] !== value) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 type GridStepperControlProps = {
   label: string;
   value: number;
@@ -413,7 +442,7 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
   const addNode = useCanvasStore((state) => state.addNode);
   const addEdge = useCanvasStore((state) => state.addEdge);
   const findNodePosition = useCanvasStore((state) => state.findNodePosition);
-  const apiKey = useSettingsStore((state) => state.apiKey);
+  const apiKeys = useSettingsStore((state) => state.apiKeys);
   const storyboardGenKeepStyleConsistent = useSettingsStore(
     (state) => state.storyboardGenKeepStyleConsistent
   );
@@ -434,6 +463,10 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
   const frameHighlightRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const nodeData = data as StoryboardGenNodeData;
+  const [frameDescriptionDrafts, setFrameDescriptionDrafts] = useState<Record<string, string>>(() =>
+    buildFrameDescriptionDrafts(nodeData.frames)
+  );
+  const frameDescriptionDraftsRef = useRef(frameDescriptionDrafts);
   const resolvedTitle = useMemo(
     () => resolveNodeDisplayName(CANVAS_NODE_TYPES.storyboardGen, nodeData),
     [nodeData]
@@ -459,6 +492,7 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
     const modelId = nodeData.model ?? DEFAULT_IMAGE_MODEL_ID;
     return getImageModel(modelId);
   }, [nodeData.model]);
+  const providerApiKey = apiKeys[selectedModel.providerId] ?? '';
 
   const selectedResolution = useMemo((): AspectRatioChoice => {
     const nodeSize = nodeData.size;
@@ -586,6 +620,17 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
   }, [frameAspectRatioValue, nodeData.gridCols, nodeData.gridRows, resolvedNodeHeight, resolvedNodeWidth]);
 
   useEffect(() => {
+    frameDescriptionDraftsRef.current = frameDescriptionDrafts;
+  }, [frameDescriptionDrafts]);
+
+  useEffect(() => {
+    const nextDrafts = buildFrameDescriptionDrafts(nodeData.frames);
+    setFrameDescriptionDrafts((previous) =>
+      areFrameDescriptionDraftsEqual(previous, nextDrafts) ? previous : nextDrafts
+    );
+  }, [nodeData.frames]);
+
+  useEffect(() => {
     updateNodeInternals(id);
   }, [id, resolvedNodeHeight, resolvedNodeWidth, updateNodeInternals]);
 
@@ -686,7 +731,8 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
     parts.push(`${promptDirectives.join('，')}。`);
 
     frames.forEach((frame, index) => {
-      const sanitizedDescription = frame.description.replace(/@(?=图\d+)/g, '').trim();
+      const frameDescription = frameDescriptionDraftsRef.current[frame.id] ?? frame.description;
+      const sanitizedDescription = frameDescription.replace(/@(?=图\d+)/g, '').trim();
       if (!sanitizedDescription) {
         return;
       }
@@ -708,7 +754,7 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
       return;
     }
 
-    if (!apiKey) {
+    if (!providerApiKey) {
       setError('请在设置中填写 API Key');
       return;
     }
@@ -746,7 +792,7 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
     setError(null);
 
     try {
-      await canvasAiGateway.setApiKey('ppio', apiKey);
+      await canvasAiGateway.setApiKey(selectedModel.providerId, providerApiKey);
 
       let resolvedRequestAspectRatio = selectedAspectRatio.value;
       if (resolvedRequestAspectRatio === AUTO_REQUEST_ASPECT_RATIO) {
@@ -783,12 +829,16 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
         size: selectedResolution.value,
         aspectRatio: resolvedRequestAspectRatio,
         referenceImages: allReferenceImages,
+        extraParams: nodeData.extraParams,
       });
 
       const prepared = await prepareNodeImage(resultUrl);
       const metadataFrameNotes = nodeData.frames
         .slice(0, nodeData.gridRows * nodeData.gridCols)
-        .map((frame) => frame.description.replace(/@(?=图\d+)/g, '').trim());
+        .map((frame) => {
+          const description = frameDescriptionDraftsRef.current[frame.id] ?? frame.description;
+          return description.replace(/@(?=图\d+)/g, '').trim();
+        });
       const imageWithMetadata = await embedStoryboardImageMetadata(prepared.imageUrl, {
         gridRows: nodeData.gridRows,
         gridCols: nodeData.gridCols,
@@ -818,11 +868,13 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
       });
     }
   }, [
-    apiKey,
+    providerApiKey,
     nodeData,
     incomingImages,
     requestResolution.requestModel,
+    nodeData.extraParams,
     selectedModel.expectedDurationMs,
+    selectedModel.providerId,
     supportedAspectRatioValues,
     setSelectedNode,
     selectedAspectRatio.value,
@@ -860,15 +912,30 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
 
   const handleFrameDescriptionChange = useCallback(
     (index: number, description: string) => {
-      if (!nodeData) {
+      const frame = nodeData.frames[index];
+      if (!frame) {
         return;
       }
+
+      setFrameDescriptionDrafts((previous) =>
+        previous[frame.id] === description
+          ? previous
+          : {
+            ...previous,
+            [frame.id]: description,
+          }
+      );
+
       const referenceIndex = resolveReferenceIndexFromDescription(description, incomingImages.length);
+      if (frame.description === description && frame.referenceIndex === referenceIndex) {
+        return;
+      }
+
       const newFrames = [...nodeData.frames];
-      newFrames[index] = { ...newFrames[index], description, referenceIndex };
+      newFrames[index] = { ...frame, description, referenceIndex };
       updateNodeData(id, { frames: newFrames });
     },
-    [incomingImages.length, nodeData, updateNodeData, id]
+    [id, incomingImages.length, nodeData.frames, updateNodeData]
   );
 
   const closeImagePicker = useCallback(() => {
@@ -901,15 +968,10 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
     }
 
     const marker = `@图${imageIndex + 1}`;
-    const cursor = pickerCursor ?? frame.description.length;
-    const nextDescription = `${frame.description.slice(0, cursor)}${marker}${frame.description.slice(cursor)}`;
-    const nextFrames = [...nodeData.frames];
-    nextFrames[pickerFrameIndex] = {
-      ...frame,
-      description: nextDescription,
-      referenceIndex: imageIndex,
-    };
-    updateNodeData(id, { frames: nextFrames });
+    const currentDescription = frameDescriptionDraftsRef.current[frame.id] ?? frame.description;
+    const cursor = pickerCursor ?? currentDescription.length;
+    const nextDescription = `${currentDescription.slice(0, cursor)}${marker}${currentDescription.slice(cursor)}`;
+    handleFrameDescriptionChange(pickerFrameIndex, nextDescription);
     closeImagePicker();
 
     const nextCursor = cursor + marker.length;
@@ -917,7 +979,7 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
       activeFrameTextareaRef.current?.focus();
       activeFrameTextareaRef.current?.setSelectionRange(nextCursor, nextCursor);
     });
-  }, [closeImagePicker, id, nodeData, pickerCursor, pickerFrameIndex, updateNodeData]);
+  }, [closeImagePicker, handleFrameDescriptionChange, nodeData, pickerCursor, pickerFrameIndex]);
 
   const handleFrameDescriptionKeyDown = useCallback(
     (index: number, event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
@@ -1039,7 +1101,9 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
             gridTemplateColumns: `repeat(${nodeData.gridCols}, ${frameLayout.cellWidth}px)`,
           }}
         >
-          {nodeData.frames.map((frame, index) => (
+          {nodeData.frames.map((frame, index) => {
+            const frameDescription = frameDescriptionDrafts[frame.id] ?? frame.description;
+            return (
             <div
               key={frame.id}
               className="relative overflow-hidden rounded border border-[rgba(255,255,255,0.06)] bg-bg-dark/40"
@@ -1053,15 +1117,18 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
                 className="pointer-events-none absolute inset-0 overflow-auto text-[10px] leading-4 text-text-dark [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
                 <div className="min-h-full whitespace-pre-wrap break-words px-1.5 py-1 text-left">
-                  {renderFrameDescriptionWithHighlights(frame.description)}
+                  {renderFrameDescriptionWithHighlights(frameDescription)}
                 </div>
               </div>
               <textarea
                 ref={(element) => {
                   frameTextareaRefs.current[frame.id] = element;
                 }}
-                value={frame.description}
-                onChange={(e) => handleFrameDescriptionChange(index, e.target.value)}
+                value={frameDescription}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  handleFrameDescriptionChange(index, nextValue);
+                }}
                 onKeyDown={(event) => handleFrameDescriptionKeyDown(index, event)}
                 onScroll={() => syncFrameHighlightScroll(frame.id)}
                 onPointerDown={(event) => {
@@ -1079,7 +1146,8 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
                 className="ui-scrollbar nodrag nowheel relative z-10 h-full w-full resize-none overflow-y-auto overflow-x-hidden bg-transparent px-1.5 py-1 text-left text-[10px] leading-4 text-transparent caret-text-dark placeholder:text-text-muted/40 focus:border-accent/50 focus:outline-none whitespace-pre-wrap break-words"
               />
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

@@ -1,5 +1,7 @@
+use std::collections::HashSet;
+
 use super::adapter::PPIOModelAdapter;
-use super::models::Gemini31FlashAdapter;
+use super::models::collect_adapters;
 
 pub struct PPIOModelRegistry {
     adapters: Vec<Box<dyn PPIOModelAdapter>>,
@@ -10,7 +12,11 @@ impl PPIOModelRegistry {
         let mut registry = Self {
             adapters: Vec::new(),
         };
-        registry.register(Box::new(Gemini31FlashAdapter::new()));
+
+        for adapter in collect_adapters() {
+            registry.register(adapter);
+        }
+
         registry
     }
 
@@ -27,6 +33,20 @@ impl PPIOModelRegistry {
 
     pub fn supports(&self, model: &str) -> bool {
         self.resolve(model).is_some()
+    }
+
+    pub fn list_models(&self) -> Vec<String> {
+        let mut seen = HashSet::new();
+        let mut models = Vec::new();
+
+        for model in self.adapters.iter().map(|adapter| adapter.canonical_model()) {
+            if seen.insert(model) {
+                models.push(model.to_string());
+            }
+        }
+
+        models.sort();
+        models
     }
 }
 

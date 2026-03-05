@@ -11,11 +11,13 @@ const modelModules = import.meta.glob<{ imageModel: ImageModelDefinition }>(
 
 const providers: ModelProviderDefinition[] = Object.values(providerModules)
   .map((module) => module.provider)
-  .filter((provider): provider is ModelProviderDefinition => Boolean(provider));
+  .filter((provider): provider is ModelProviderDefinition => Boolean(provider))
+  .sort((a, b) => a.id.localeCompare(b.id));
 
 const imageModels: ImageModelDefinition[] = Object.values(modelModules)
   .map((module) => module.imageModel)
-  .filter((model): model is ImageModelDefinition => Boolean(model));
+  .filter((model): model is ImageModelDefinition => Boolean(model))
+  .sort((a, b) => a.id.localeCompare(b.id));
 
 const providerMap = new Map<string, ModelProviderDefinition>(
   providers.map((provider) => [provider.id, provider])
@@ -33,6 +35,10 @@ const imageModelAliasMap = new Map<string, string>([
 
 export function listImageModels(): ImageModelDefinition[] {
   return imageModels;
+}
+
+export function listModelProviders(): ModelProviderDefinition[] {
+  return providers;
 }
 
 export function getImageModel(modelId: string): ImageModelDefinition {
