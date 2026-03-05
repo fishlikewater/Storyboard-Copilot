@@ -2,6 +2,7 @@ import { convertFileSrc, isTauri } from '@tauri-apps/api/core';
 
 import {
   loadImage,
+  prepareNodeImageBinary,
   persistImageSource,
   prepareNodeImageSource,
 } from '@/commands/image';
@@ -185,6 +186,71 @@ export async function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
+function resolveFileExtension(file: File): string {
+  const mime = file.type.toLowerCase();
+  if (mime === 'image/png') return 'png';
+  if (mime === 'image/jpeg' || mime === 'image/jpg') return 'jpg';
+  if (mime === 'image/webp') return 'webp';
+  if (mime === 'image/gif') return 'gif';
+  if (mime === 'image/bmp') return 'bmp';
+  if (mime === 'image/tiff') return 'tiff';
+  if (mime === 'image/avif') return 'avif';
+
+  const name = file.name.trim();
+  const dot = name.lastIndexOf('.');
+  if (dot >= 0 && dot < name.length - 1) {
+    return name.slice(dot + 1).toLowerCase();
+  }
+  return 'png';
+}
+
+export async function prepareNodeImageFromFile(
+  file: File,
+  maxPreviewDimension = DEFAULT_PREVIEW_MAX_DIMENSION
+): Promise<PreparedNodeImage> {
+  const started = performance.now();
+  const tauriFilePath = (file as File & { path?: string }).path;
+  const normalizedPath = typeof tauriFilePath === 'string' ? tauriFilePath.trim() : '';
+  const canUseLocalPath =
+    normalizedPath.length > 0
+    && (isLikelyLocalImagePath(normalizedPath) || normalizedPath.toLowerCase().startsWith('file://'));
+  if (canUseLocalPath) {
+    const prepared = await prepareNodeImage(normalizedPath, maxPreviewDimension);
+    console.info(
+      `[upload-perf][imageData] prepareNodeImageFromFile path-mode name="${file.name}" size=${file.size}B elapsed=${Math.round(performance.now() - started)}ms`
+    );
+    return prepared;
+  }
+
+  if (isTauri()) {
+    const safeMaxDimension = Math.max(64, Math.floor(maxPreviewDimension));
+    const readStarted = performance.now();
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const readElapsed = Math.round(performance.now() - readStarted);
+    const extension = resolveFileExtension(file);
+    const tauriStarted = performance.now();
+    const prepared = await prepareNodeImageBinary(bytes, extension, safeMaxDimension);
+    const tauriElapsed = Math.round(performance.now() - tauriStarted);
+    console.info(
+      `[upload-perf][imageData] prepareNodeImageFromFile binary-mode name="${file.name}" size=${file.size}B readArrayBuffer=${readElapsed}ms tauriPrepare=${tauriElapsed}ms total=${Math.round(performance.now() - started)}ms`
+    );
+    return {
+      imageUrl: prepared.imagePath,
+      previewImageUrl: prepared.previewImagePath,
+      aspectRatio: prepared.aspectRatio,
+    };
+  }
+
+  const dataUrlStarted = performance.now();
+  const source = await readFileAsDataUrl(file);
+  const dataUrlElapsed = Math.round(performance.now() - dataUrlStarted);
+  const prepared = await prepareNodeImage(source, maxPreviewDimension);
+  console.info(
+    `[upload-perf][imageData] prepareNodeImageFromFile dataurl-fallback name="${file.name}" size=${file.size}B readDataUrl=${dataUrlElapsed}ms total=${Math.round(performance.now() - started)}ms`
+  );
+  return prepared;
+}
+
 export async function detectAspectRatio(imageUrl: string): Promise<string> {
   const image = await loadImageElement(imageUrl);
   return reduceAspectRatio(image.naturalWidth, image.naturalHeight);
@@ -251,10 +317,15 @@ export async function prepareNodeImage(
   imageUrl: string,
   maxPreviewDimension = DEFAULT_PREVIEW_MAX_DIMENSION
 ): Promise<PreparedNodeImage> {
+  const started = performance.now();
   if (isTauri()) {
     const safeMaxDimension = Math.max(64, Math.floor(maxPreviewDimension));
     try {
+      const tauriStarted = performance.now();
       const prepared = await prepareNodeImageSource(imageUrl, safeMaxDimension);
+      console.info(
+        `[upload-perf][imageData] prepareNodeImage tauri-source elapsed=${Math.round(performance.now() - tauriStarted)}ms total=${Math.round(performance.now() - started)}ms`
+      );
       return {
         imageUrl: prepared.imagePath,
         previewImageUrl: prepared.previewImagePath,
@@ -275,6 +346,9 @@ export async function prepareNodeImage(
       ? persistedImagePath
       : await persistImageLocally(previewDataUrl);
 
+  console.info(
+    `[upload-perf][imageData] prepareNodeImage browser-fallback total=${Math.round(performance.now() - started)}ms`
+  );
   return {
     imageUrl: persistedImagePath,
     previewImageUrl: previewImagePath,

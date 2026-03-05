@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight, RotateCcw, X } from 'lucide-react';
+import { UI_CONTENT_OVERLAY_INSET_CLASS } from '@/components/ui/motion';
 import { useImageViewerTransform } from '../hooks/useImageViewerTransform';
 
 export interface ImageViewerModalProps {
@@ -21,6 +22,8 @@ export function ImageViewerModal({
   onNavigate,
 }: ImageViewerModalProps): JSX.Element | null {
   const { t } = useTranslation();
+  const viewerControlClass =
+    'inline-flex h-10 items-center justify-center rounded-full border border-white/20 bg-black/60 px-4 text-sm text-white backdrop-blur-xl';
   const [isVisible, setIsVisible] = useState(false);
   const [overlayOpacity, setOverlayOpacity] = useState(0);
   const closeTimerRef = useRef<number | null>(null);
@@ -106,7 +109,7 @@ export function ImageViewerModal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-lg"
+      className={`fixed ${UI_CONTENT_OVERLAY_INSET_CLASS} z-[100] overflow-hidden bg-black/90 backdrop-blur-lg`}
       style={{
         opacity: overlayOpacity,
         transition: 'opacity 400ms ease',
@@ -115,7 +118,7 @@ export function ImageViewerModal({
     >
       <div
         ref={containerRef}
-        className="absolute inset-0 flex items-center justify-center p-4"
+        className="absolute inset-0 flex items-center justify-center overflow-hidden p-4"
         style={{ overscrollBehavior: 'contain' }}
         onMouseMove={handleContainerMouseMove}
         onMouseUp={handleContainerMouseUp}
@@ -175,26 +178,26 @@ export function ImageViewerModal({
 
           <div className="flex items-center gap-4">
             {imageList.length > 1 && (
-              <div className="rounded-full border border-white/20 bg-black/60 px-4 py-2 text-sm text-white backdrop-blur-xl">
+              <div className={viewerControlClass}>
                 {currentIndex + 1} / {imageList.length}
               </div>
             )}
             <div
               ref={scaleDisplayRef}
-              className="rounded-full border border-white/20 bg-black/60 px-4 py-2 text-sm text-white backdrop-blur-xl"
+              className={`${viewerControlClass} min-w-[74px]`}
             >
               100%
             </div>
             <button
               onClick={resetView}
-              className="rounded-full border border-white/20 bg-black/60 px-4 py-2 text-sm text-white backdrop-blur-xl transition-colors hover:bg-white/10"
+              className={`${viewerControlClass} transition-colors hover:bg-white/10`}
               title={t('viewer.reset', '重置视图')}
             >
               <RotateCcw className="h-4 w-4" />
             </button>
             <button
               onClick={onClose}
-              className="rounded-full border border-white/20 bg-black/60 px-4 py-2 text-sm text-white backdrop-blur-xl transition-colors hover:bg-white/10"
+              className={`${viewerControlClass} transition-colors hover:bg-white/10`}
               title={t('common.close', '关闭')}
             >
               <X className="h-4 w-4" />

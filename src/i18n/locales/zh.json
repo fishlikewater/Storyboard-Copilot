@@ -191,6 +191,7 @@
     "downloadPathPlaceholder": "输入目录路径，例如 /Users/name/Pictures/Storyboard 或 D:\\\\Images\\\\Storyboard",
     "addPath": "添加路径",
     "chooseFolder": "选择文件夹",
-    "noDownloadPresetPaths": "暂无预设路径"
+    "noDownloadPresetPaths": "暂无预设路径",
+    "getApiKeyLink": "点击这里获取密钥"
   }
 }

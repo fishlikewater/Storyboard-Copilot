@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, FolderOpen, Pencil, Trash2 } from 'lucide-react';
 import { useProjectStore } from '@/stores/projectStore';
+import { UI_CONTENT_OVERLAY_INSET_CLASS } from '@/components/ui/motion';
 import { RenameDialog } from './RenameDialog';
 
 export function ProjectManager() {
@@ -110,7 +111,7 @@ export function ProjectManager() {
       </div>
 
       {isOpeningProject && (
-        <div className="pointer-events-none fixed inset-0 bg-black/10" />
+        <div className={`pointer-events-none fixed ${UI_CONTENT_OVERLAY_INSET_CLASS} bg-black/10`} />
       )}
 
       <RenameDialog

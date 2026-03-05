@@ -4,7 +4,7 @@ use arboard::{Clipboard, ImageData};
 use directories::UserDirs;
 use fast_image_resize as fir;
 use fast_image_resize::images::Image as FirImage;
-use image::{DynamicImage, GenericImageView, Rgba, RgbaImage};
+use image::{DynamicImage, GenericImageView, ImageReader, Rgba, RgbaImage};
 use imageproc::drawing::{draw_text_mut, text_size};
 use md5;
 use png::{BitDepth, ColorType, Decoder, Encoder};
@@ -18,6 +18,8 @@ use tauri::{AppHandle, Manager};
 use tracing::info;
 
 const STORYBOARD_METADATA_PNG_TEXT_KEY: &str = "StoryboardCopilotMetadata";
+const FAST_PREVIEW_BYPASS_MAX_BYTES: usize = 2_000_000;
+const FAST_PREVIEW_BYPASS_MAX_DIMENSION: u32 = 2048;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -567,27 +569,44 @@ fn clamp_f64(value: f64, min: f64, max: f64) -> f64 {
     value.max(min).min(max)
 }
 
-#[tauri::command]
-pub async fn prepare_node_image_source(
-    app: AppHandle,
-    source: String,
-    max_preview_dimension: Option<u32>,
+fn prepare_node_image_from_bytes(
+    app: &AppHandle,
+    bytes: &[u8],
+    extension: &str,
+    safe_max_dimension: u32,
+    trace_tag: &str,
 ) -> Result<PrepareNodeImageResult, String> {
-    let trimmed = source.trim();
-    if trimmed.is_empty() {
-        return Err("Image source is empty".to_string());
-    }
+    let started = Instant::now();
+    let probe_started = Instant::now();
+    let (raw_width, raw_height) = ImageReader::new(Cursor::new(bytes))
+        .with_guessed_format()
+        .map_err(|e| format!("Failed to guess image format: {}", e))?
+        .into_dimensions()
+        .map_err(|e| format!("Failed to parse image dimensions: {}", e))?;
+    let probe_elapsed = probe_started.elapsed().as_millis();
+    let width = raw_width.max(1);
+    let height = raw_height.max(1);
 
-    let safe_max_dimension = max_preview_dimension.unwrap_or(512).clamp(64, 4096);
-    let (bytes, extension) = resolve_source_bytes(trimmed).await?;
-    let image = image::load_from_memory(&bytes)
-        .map_err(|e| format!("Failed to decode image source: {}", e))?;
-    let width = image.width().max(1);
-    let height = image.height().max(1);
-
-    let image_path = persist_image_bytes(&app, &bytes, &extension)?;
+    let persist_started = Instant::now();
+    let image_path = persist_image_bytes(app, bytes, extension)?;
+    let persist_elapsed = persist_started.elapsed().as_millis();
     let longest_side = width.max(height);
-    if longest_side <= safe_max_dimension {
+    let bypass_preview = longest_side <= safe_max_dimension
+        || (bytes.len() <= FAST_PREVIEW_BYPASS_MAX_BYTES
+            && longest_side <= FAST_PREVIEW_BYPASS_MAX_DIMENSION);
+    if bypass_preview {
+        info!(
+            "prepare_node_image done [{}]: bytes={}, ext={}, size={}x{}, max_preview={}, probe={}ms, decode=0ms, persist_original={}ms, resize=0ms, bypass_preview=true, total={}ms",
+            trace_tag,
+            bytes.len(),
+            extension,
+            width,
+            height,
+            safe_max_dimension,
+            probe_elapsed,
+            persist_elapsed,
+            started.elapsed().as_millis()
+        );
         return Ok(PrepareNodeImageResult {
             image_path: image_path.clone(),
             preview_image_path: image_path,
@@ -595,22 +614,117 @@ pub async fn prepare_node_image_source(
         });
     }
 
+    let decode_started = Instant::now();
+    let image = image::load_from_memory(bytes)
+        .map_err(|e| format!("Failed to decode image source: {}", e))?;
+    let decode_elapsed = decode_started.elapsed().as_millis();
+
+    let resize_started = Instant::now();
     let scale = safe_max_dimension as f64 / longest_side as f64;
     let target_width = ((width as f64) * scale).round().max(1.0) as u32;
     let target_height = ((height as f64) * scale).round().max(1.0) as u32;
-    let resized = image.resize(target_width, target_height, image::imageops::FilterType::Lanczos3);
+    let resized_rgba = resize_image_fast(&image, target_width, target_height)
+        .unwrap_or_else(|_| {
+            image
+                .resize(target_width, target_height, image::imageops::FilterType::Triangle)
+                .to_rgba8()
+        });
+    let resized = DynamicImage::ImageRgba8(resized_rgba);
 
     let mut preview_buffer = Cursor::new(Vec::new());
     resized
         .write_to(&mut preview_buffer, image::ImageFormat::Png)
         .map_err(|e| format!("Failed to encode preview image: {}", e))?;
-    let preview_image_path = persist_image_bytes(&app, preview_buffer.get_ref(), "png")?;
+    let preview_image_path = persist_image_bytes(app, preview_buffer.get_ref(), "png")?;
+    let resize_elapsed = resize_started.elapsed().as_millis();
+
+    info!(
+        "prepare_node_image done [{}]: bytes={}, ext={}, size={}x{}, max_preview={}, probe={}ms, decode={}ms, persist_original={}ms, resize={}ms, total={}ms",
+        trace_tag,
+        bytes.len(),
+        extension,
+        width,
+        height,
+        safe_max_dimension,
+        probe_elapsed,
+        decode_elapsed,
+        persist_elapsed,
+        resize_elapsed,
+        started.elapsed().as_millis()
+    );
 
     Ok(PrepareNodeImageResult {
         image_path,
         preview_image_path,
         aspect_ratio: reduce_aspect_ratio(width, height),
     })
+}
+
+#[tauri::command]
+pub async fn prepare_node_image_source(
+    app: AppHandle,
+    source: String,
+    max_preview_dimension: Option<u32>,
+) -> Result<PrepareNodeImageResult, String> {
+    let started = Instant::now();
+    let trimmed = source.trim();
+    if trimmed.is_empty() {
+        return Err("Image source is empty".to_string());
+    }
+
+    let safe_max_dimension = max_preview_dimension.unwrap_or(512).clamp(64, 4096);
+    let resolve_started = Instant::now();
+    let (bytes, extension) = resolve_source_bytes(trimmed).await?;
+    let resolve_elapsed = resolve_started.elapsed().as_millis();
+    let result = prepare_node_image_from_bytes(
+        &app,
+        &bytes,
+        &extension,
+        safe_max_dimension,
+        "source",
+    )?;
+    info!(
+        "prepare_node_image_source resolved: bytes={}, ext={}, resolve_source={}ms, total={}ms",
+        bytes.len(),
+        extension,
+        resolve_elapsed,
+        started.elapsed().as_millis()
+    );
+    Ok(result)
+}
+
+#[tauri::command]
+pub async fn prepare_node_image_binary(
+    app: AppHandle,
+    bytes: Vec<u8>,
+    extension: Option<String>,
+    max_preview_dimension: Option<u32>,
+) -> Result<PrepareNodeImageResult, String> {
+    let started = Instant::now();
+    if bytes.is_empty() {
+        return Err("Image bytes are empty".to_string());
+    }
+
+    let safe_max_dimension = max_preview_dimension.unwrap_or(512).clamp(64, 4096);
+    let resolved_extension = extension
+        .as_deref()
+        .map(normalize_extension)
+        .unwrap_or_else(|| "png".to_string());
+
+    let result = prepare_node_image_from_bytes(
+        &app,
+        &bytes,
+        &resolved_extension,
+        safe_max_dimension,
+        "binary",
+    )?;
+    info!(
+        "prepare_node_image_binary resolved: bytes={}, ext={}, total={}ms",
+        bytes.len(),
+        resolved_extension,
+        started.elapsed().as_millis()
+    );
+    Ok(result)
 }
 
 #[tauri::command]

@@ -33,6 +33,7 @@ pub fn run() {
             image::split_image,
             image::split_image_source,
             image::prepare_node_image_source,
+            image::prepare_node_image_binary,
             image::crop_image_source,
             image::merge_storyboard_images,
             image::read_storyboard_image_metadata,

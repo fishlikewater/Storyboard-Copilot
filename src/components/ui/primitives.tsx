@@ -8,7 +8,7 @@ import {
   type TextareaHTMLAttributes,
 } from 'react';
 import { Check, ChevronDown, X } from 'lucide-react';
-import { UI_DIALOG_TRANSITION_MS } from './motion';
+import { UI_CONTENT_OVERLAY_INSET_CLASS, UI_DIALOG_TRANSITION_MS } from './motion';
 import { useDialogTransition } from './useDialogTransition';
 
 type ButtonVariant = 'primary' | 'muted' | 'ghost';
@@ -193,7 +193,7 @@ export function UiModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className={`fixed ${UI_CONTENT_OVERLAY_INSET_CLASS} z-50 flex items-center justify-center`}>
       <div
         className={`absolute inset-0 bg-black/55 transition-opacity duration-200 ${isVisible ? 'opacity-100' : 'opacity-0'}`}
         onClick={onClose}

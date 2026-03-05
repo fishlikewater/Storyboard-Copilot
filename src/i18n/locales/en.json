@@ -191,6 +191,7 @@
     "downloadPathPlaceholder": "Input folder path, e.g. /Users/name/Pictures/Storyboard or D:\\\\Images\\\\Storyboard",
     "addPath": "Add Path",
     "chooseFolder": "Choose Folder",
-    "noDownloadPresetPaths": "No preset path yet"
+    "noDownloadPresetPaths": "No preset path yet",
+    "getApiKeyLink": "Click here to get API key"
   }
 }

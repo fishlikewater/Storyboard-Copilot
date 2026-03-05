@@ -4,8 +4,10 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
   type ChangeEvent,
   type DragEvent,
+  type SyntheticEvent,
 } from 'react';
 import { Handle, Position, useViewport, type NodeProps } from '@xyflow/react';
 import { Upload } from 'lucide-react';
@@ -29,9 +31,7 @@ import { canvasEventBus } from '@/features/canvas/application/canvasServices';
 import { NodeHeader, NODE_HEADER_FLOATING_POSITION_CLASS } from '@/features/canvas/ui/NodeHeader';
 import { NodeResizeHandle } from '@/features/canvas/ui/NodeResizeHandle';
 import {
-  isLikelyLocalImagePath,
-  prepareNodeImage,
-  readFileAsDataUrl,
+  prepareNodeImageFromFile,
   resolveImageDisplayUrl,
   shouldUseOriginalImageByZoom,
 } from '@/features/canvas/application/imageData';
@@ -59,6 +59,16 @@ export const UploadNode = memo(({ id, data, selected, width, height }: UploadNod
   const useUploadFilenameAsNodeTitle = useSettingsStore((state) => state.useUploadFilenameAsNodeTitle);
   const { zoom } = useViewport();
   const inputRef = useRef<HTMLInputElement>(null);
+  const uploadSequenceRef = useRef(0);
+  const uploadPerfRef = useRef<{
+    sequence: number;
+    name: string;
+    size: number;
+    startedAt: number;
+    transientLoaded: boolean;
+    stableLoaded: boolean;
+  } | null>(null);
+  const [transientPreviewUrl, setTransientPreviewUrl] = useState<string | null>(null);
   const resolvedAspectRatio = data.aspectRatio || '1:1';
   const compactSize = resolveMinEdgeFittedSize(resolvedAspectRatio, {
     minWidth: EXPORT_RESULT_NODE_MIN_WIDTH,
@@ -85,33 +95,117 @@ export const UploadNode = memo(({ id, data, selected, width, height }: UploadNod
     return resolveNodeDisplayName(CANVAS_NODE_TYPES.upload, data);
   }, [data, useUploadFilenameAsNodeTitle]);
 
+  const clearTransientPreview = useCallback(() => {
+    setTransientPreviewUrl((current) => {
+      if (current) {
+        URL.revokeObjectURL(current);
+      }
+      return null;
+    });
+  }, []);
+
   const processFile = useCallback(
     async (file: File) => {
-      const tauriFilePath =
-        (file as File & { path?: string }).path;
-      const normalizedPath = typeof tauriFilePath === 'string' ? tauriFilePath.trim() : '';
-      const canUseLocalPath =
-        normalizedPath.length > 0
-        && (isLikelyLocalImagePath(normalizedPath) || normalizedPath.toLowerCase().startsWith('file://'));
-      const source =
-        canUseLocalPath
-          ? normalizedPath
-          : await readFileAsDataUrl(file);
-
-      const prepared = await prepareNodeImage(source);
-      const nextData: Partial<UploadImageNodeData> = {
-        imageUrl: prepared.imageUrl,
-        previewImageUrl: prepared.previewImageUrl,
-        aspectRatio: prepared.aspectRatio || '1:1',
-        sourceFileName: file.name,
+      const sequence = uploadSequenceRef.current + 1;
+      uploadSequenceRef.current = sequence;
+      const started = performance.now();
+      clearTransientPreview();
+      const optimisticPreviewUrl = URL.createObjectURL(file);
+      setTransientPreviewUrl(optimisticPreviewUrl);
+      uploadPerfRef.current = {
+        sequence,
+        name: file.name,
+        size: file.size,
+        startedAt: started,
+        transientLoaded: false,
+        stableLoaded: false,
       };
-      if (useUploadFilenameAsNodeTitle) {
-        nextData.displayName = file.name;
+      requestAnimationFrame(() => {
+        const perf = uploadPerfRef.current;
+        if (!perf || perf.sequence !== sequence) {
+          return;
+        }
+        console.info(
+          `[upload-perf][e2e] preview-state-committed nodeId=${id} name="${file.name}" elapsed=${Math.round(performance.now() - started)}ms`
+        );
+      });
+
+      try {
+        const prepared = await prepareNodeImageFromFile(file);
+        const nextData: Partial<UploadImageNodeData> = {
+          imageUrl: prepared.imageUrl,
+          previewImageUrl: prepared.previewImageUrl,
+          aspectRatio: prepared.aspectRatio || '1:1',
+          sourceFileName: file.name,
+        };
+        if (useUploadFilenameAsNodeTitle) {
+          nextData.displayName = file.name;
+        }
+        updateNodeData(id, nextData);
+
+        console.info(
+          `[upload-perf][node] processFile success nodeId=${id} name="${file.name}" size=${file.size}B elapsed=${Math.round(performance.now() - started)}ms`
+        );
+      } catch (error) {
+        if (uploadSequenceRef.current === sequence) {
+          clearTransientPreview();
+        }
+        console.error(
+          `[upload-perf][node] processFile failed nodeId=${id} name="${file.name}" size=${file.size}B elapsed=${Math.round(performance.now() - started)}ms`,
+          error
+        );
+        throw error;
       }
-      updateNodeData(id, nextData);
     },
-    [id, updateNodeData, useUploadFilenameAsNodeTitle]
+    [clearTransientPreview, id, updateNodeData, useUploadFilenameAsNodeTitle]
   );
+
+  const handleImageLoad = useCallback((event: SyntheticEvent<HTMLImageElement>) => {
+    const perf = uploadPerfRef.current;
+    if (!perf) {
+      return;
+    }
+
+    const displayedSrc = event.currentTarget.currentSrc || event.currentTarget.src || '';
+    const isTransient = displayedSrc.startsWith('blob:');
+    const now = performance.now();
+
+    if (isTransient && !perf.transientLoaded) {
+      perf.transientLoaded = true;
+      console.info(
+        `[upload-perf][e2e] first-visible transient nodeId=${id} name="${perf.name}" size=${perf.size}B elapsed=${Math.round(now - perf.startedAt)}ms`
+      );
+      requestAnimationFrame(() => {
+        const nextPerf = uploadPerfRef.current;
+        if (!nextPerf || nextPerf.sequence !== perf.sequence) {
+          return;
+        }
+        console.info(
+          `[upload-perf][e2e] first-painted transient nodeId=${id} name="${nextPerf.name}" elapsed=${Math.round(performance.now() - nextPerf.startedAt)}ms`
+        );
+      });
+      return;
+    }
+
+    if (!isTransient && !perf.stableLoaded) {
+      perf.stableLoaded = true;
+      console.info(
+        `[upload-perf][e2e] stable-visible nodeId=${id} name="${perf.name}" size=${perf.size}B elapsed=${Math.round(now - perf.startedAt)}ms`
+      );
+      if (uploadSequenceRef.current === perf.sequence) {
+        clearTransientPreview();
+      }
+      requestAnimationFrame(() => {
+        const nextPerf = uploadPerfRef.current;
+        if (!nextPerf || nextPerf.sequence !== perf.sequence) {
+          return;
+        }
+        console.info(
+          `[upload-perf][e2e] stable-painted nodeId=${id} name="${nextPerf.name}" elapsed=${Math.round(performance.now() - nextPerf.startedAt)}ms`
+        );
+      });
+    }
+  }, [clearTransientPreview, id]);
 
   const handleDrop = useCallback(
     async (event: DragEvent<HTMLElement>) => {
@@ -159,18 +253,26 @@ export const UploadNode = memo(({ id, data, selected, width, height }: UploadNod
 
   const handleNodeClick = useCallback(() => {
     setSelectedNode(id);
-    if (!data.imageUrl) {
+    if (!data.imageUrl && !transientPreviewUrl) {
       inputRef.current?.click();
     }
-  }, [data.imageUrl, id, setSelectedNode]);
+  }, [data.imageUrl, id, setSelectedNode, transientPreviewUrl]);
+
+  useEffect(() => () => {
+    uploadPerfRef.current = null;
+    clearTransientPreview();
+  }, [clearTransientPreview]);
 
   const imageSource = useMemo(() => {
+    if (transientPreviewUrl) {
+      return transientPreviewUrl;
+    }
     const preferOriginal = shouldUseOriginalImageByZoom(zoom);
     const picked = preferOriginal
       ? data.imageUrl || data.previewImageUrl
       : data.previewImageUrl || data.imageUrl;
     return picked ? resolveImageDisplayUrl(picked) : null;
-  }, [data.imageUrl, data.previewImageUrl, zoom]);
+  }, [data.imageUrl, data.previewImageUrl, transientPreviewUrl, zoom]);
 
   return (
     <div
@@ -191,7 +293,7 @@ export const UploadNode = memo(({ id, data, selected, width, height }: UploadNod
         onTitleChange={(nextTitle) => updateNodeData(id, { displayName: nextTitle })}
       />
 
-      {data.imageUrl ? (
+      {data.imageUrl || transientPreviewUrl ? (
         <div
           className="block h-full w-full overflow-hidden rounded-[var(--node-radius)] bg-bg-dark"
         >
@@ -200,6 +302,7 @@ export const UploadNode = memo(({ id, data, selected, width, height }: UploadNod
             viewerSourceUrl={data.imageUrl ? resolveImageDisplayUrl(data.imageUrl) : null}
             alt={t('node.upload.uploadedAlt')}
             className="h-full w-full object-contain"
+            onLoad={handleImageLoad}
           />
         </div>
       ) : (

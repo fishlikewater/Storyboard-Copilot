@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { UiCheckbox, UiSelect } from '@/components/ui';
-import { UI_DIALOG_TRANSITION_MS } from '@/components/ui/motion';
+import { UI_CONTENT_OVERLAY_INSET_CLASS, UI_DIALOG_TRANSITION_MS } from '@/components/ui/motion';
 import { useDialogTransition } from '@/components/ui/useDialogTransition';
 import { listModelProviders } from '@/features/canvas/models';
 
@@ -154,7 +154,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
   if (!shouldRender) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className={`fixed ${UI_CONTENT_OVERLAY_INSET_CLASS} z-50 flex items-center justify-center`}>
       <div
         className={`absolute inset-0 bg-black/50 transition-opacity duration-200 ${isVisible ? 'opacity-100' : 'opacity-0'}`}
         onClick={onClose}
@@ -243,14 +243,20 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
 
                   return (
                     <div key={provider.id} className="rounded-lg border border-border-dark bg-bg-dark p-4">
-                      <div className="mb-3 flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border-dark bg-surface-dark text-sm font-semibold text-text-dark">
-                          {provider.name.slice(0, 1).toUpperCase()}
-                        </div>
-                        <div>
-                          <h3 className="text-sm font-medium text-text-dark">{displayName}</h3>
+                      <div className="mb-3">
+                        <h3 className="text-sm font-medium text-text-dark">{displayName}</h3>
+                        {provider.id === 'ppio' ? (
+                          <a
+                            href="https://ppio.com/user/register?invited_by=MLBDS6"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs text-accent hover:underline"
+                          >
+                            {t('settings.getApiKeyLink')}
+                          </a>
+                        ) : (
                           <p className="text-xs text-text-muted">{provider.id}</p>
-                        </div>
+                        )}
                       </div>
 
                       <div className="relative">

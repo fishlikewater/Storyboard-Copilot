@@ -110,6 +110,18 @@ export async function prepareNodeImageSource(
   });
 }
 
+export async function prepareNodeImageBinary(
+  bytes: Uint8Array,
+  extension?: string,
+  maxPreviewDimension = 512
+): Promise<PrepareNodeImageSourceResult> {
+  return await invoke('prepare_node_image_binary', {
+    bytes: Array.from(bytes),
+    extension,
+    maxPreviewDimension,
+  });
+}
+
 export async function cropImageSource(
   payload: CropImageSourcePayload
 ): Promise<string> {

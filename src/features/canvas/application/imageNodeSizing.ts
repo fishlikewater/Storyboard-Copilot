@@ -21,42 +21,44 @@ export function resolveAspectRatioValue(aspectRatio: string): number {
   return Math.max(0.1, parseAspectRatio(aspectRatio));
 }
 
+function resolveMinSizeByRatio(
+  ratio: number,
+  constraints: ImageNodeMinSize
+): ImageNodeSize {
+  const safeRatio = Math.max(0.1, ratio);
+  const minWidth = roundPositive(constraints.minWidth);
+  const minHeight = roundPositive(constraints.minHeight);
+  const minRatio = minWidth / Math.max(1, minHeight);
+
+  if (safeRatio >= minRatio) {
+    return {
+      width: roundPositive(minHeight * safeRatio),
+      height: minHeight,
+    };
+  }
+
+  return {
+    width: minWidth,
+    height: roundPositive(minWidth / safeRatio),
+  };
+}
+
 export function resolveMinEdgeFittedSize(
   aspectRatio: string,
   constraints: ImageNodeMinSize
 ): ImageNodeSize {
   const ratio = resolveAspectRatioValue(aspectRatio);
-  const minWidth = roundPositive(constraints.minWidth);
-  const minHeight = roundPositive(constraints.minHeight);
-
-  const widthFirst = {
-    width: minWidth,
-    height: roundPositive(minWidth / ratio),
-  };
-  const heightFirst = {
-    width: roundPositive(minHeight * ratio),
-    height: minHeight,
-  };
-
-  return widthFirst.width * widthFirst.height <= heightFirst.width * heightFirst.height
-    ? widthFirst
-    : heightFirst;
+  return resolveMinSizeByRatio(ratio, constraints);
 }
 
 export function resolveResizeMinConstraintsByAspect(
   aspectRatio: string,
   constraints: ImageNodeMinSize
 ): ImageNodeMinSize {
-  const ratio = resolveAspectRatioValue(aspectRatio);
+  void resolveAspectRatioValue(aspectRatio);
   const minWidth = roundPositive(constraints.minWidth);
   const minHeight = roundPositive(constraints.minHeight);
-  const threshold = minWidth / Math.max(1, minHeight);
-
-  if (ratio >= threshold) {
-    return { minWidth, minHeight: 1 };
-  }
-
-  return { minWidth: 1, minHeight };
+  return { minWidth, minHeight };
 }
 
 export function resolveSizeInsideTargetBox(
@@ -89,17 +91,11 @@ export function ensureAtLeastOneMinEdge(
   const minHeight = roundPositive(constraints.minHeight);
   const width = roundPositive(size.width);
   const height = roundPositive(size.height);
+  const ratio = width / Math.max(1, height);
 
-  if (width >= minWidth || height >= minHeight) {
+  if (width >= minWidth && height >= minHeight) {
     return { width, height };
   }
 
-  const widthScale = minWidth / Math.max(1, width);
-  const heightScale = minHeight / Math.max(1, height);
-  const scale = Math.min(widthScale, heightScale);
-
-  return {
-    width: roundPositive(width * scale),
-    height: roundPositive(height * scale),
-  };
+  return resolveMinSizeByRatio(ratio, { minWidth, minHeight });
 }
