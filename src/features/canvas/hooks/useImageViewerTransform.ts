@@ -100,6 +100,17 @@ export function useImageViewerTransform(isOpen: boolean): ImageViewerTransformHa
     const container = containerRef.current;
     if (!container || !isOpen) return;
 
+    const isMacOs =
+      typeof navigator !== 'undefined' &&
+      typeof navigator.platform === 'string' &&
+      /mac/i.test(navigator.platform);
+
+    const wheelDelta = (event: WheelEvent): number => {
+      const factor = event.ctrlKey && isMacOs ? 10 : 1;
+      const deltaModeFactor = event.deltaMode === 1 ? 0.05 : event.deltaMode ? 1 : 0.002;
+      return -event.deltaY * deltaModeFactor * factor;
+    };
+
     const handleWheel = (e: WheelEvent) => {
       if (!isPointOnImageContent(e.clientX, e.clientY)) return;
       e.preventDefault();
@@ -111,8 +122,8 @@ export function useImageViewerTransform(isOpen: boolean): ImageViewerTransformHa
 
       const currentScale = targetScaleRef.current;
       const currentPos = targetPositionRef.current;
-      const zoom = e.deltaY > 0 ? 1 / 1.1 : 1.1;
-      let newScale = currentScale * zoom;
+      const pinchDelta = wheelDelta(e);
+      let newScale = currentScale * Math.pow(2, pinchDelta);
       newScale = Math.max(0.1, Math.min(10, newScale));
 
       const rect = container.getBoundingClientRect();
