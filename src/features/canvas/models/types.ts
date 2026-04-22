@@ -8,6 +8,23 @@ export interface ModelProviderDefinition {
   label: string;
 }
 
+export interface RuntimeProviderConfig {
+  kind: 'builtin' | 'custom-openapi';
+  providerProfileId?: string;
+  providerDisplayName?: string;
+  protocol?: 'openapi';
+  baseUrl?: string;
+  apiKey?: string;
+  remoteModelId?: string;
+}
+
+export interface RuntimeModelProviderDefinition extends ModelProviderDefinition {
+  runtimeKind: 'builtin' | 'custom-openapi';
+  configured: boolean;
+  providerProfileId?: string;
+  protocol?: 'openapi';
+}
+
 export interface AspectRatioOption {
   value: string;
   label: string;
@@ -58,4 +75,9 @@ export interface ImageModelDefinition {
     requestModel: string;
     modeLabel: string;
   };
+}
+
+export interface RuntimeImageModelDefinition extends ImageModelDefinition {
+  runtimeProvider: RuntimeProviderConfig;
+  supportsResolutionSelection: boolean;
 }

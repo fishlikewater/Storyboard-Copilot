@@ -46,10 +46,12 @@ import {
   removeTextRange,
   resolveReferenceAwareDeleteRange,
 } from '@/features/canvas/application/referenceTokenEditing';
+import { resolveGenerationContext } from '@/features/canvas/application/runtimeGenerationContext';
+import { buildNodeGeneratePayload } from '@/features/canvas/application/buildNodeGeneratePayload';
 import {
   DEFAULT_IMAGE_MODEL_ID,
-  getImageModel,
-  listImageModels,
+  getRuntimeImageModel,
+  listRuntimeImageModels,
   resolveImageModelResolution,
   resolveImageModelResolutions,
 } from '@/features/canvas/models';
@@ -247,6 +249,7 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
   const findNodePosition = useCanvasStore((state) => state.findNodePosition);
   const addEdge = useCanvasStore((state) => state.addEdge);
   const apiKeys = useSettingsStore((state) => state.apiKeys);
+  const customProviders = useSettingsStore((state) => state.customProviders);
   const grsaiNanoBananaProModel = useSettingsStore((state) => state.grsaiNanoBananaProModel);
   const showNodePrice = useSettingsStore((state) => state.showNodePrice);
   const priceDisplayCurrencyMode = useSettingsStore((state) => state.priceDisplayCurrencyMode);
@@ -273,13 +276,16 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
     [incomingImageItems]
   );
 
-  const imageModels = useMemo(() => listImageModels(), []);
+  const imageModels = useMemo(() => listRuntimeImageModels(customProviders), [customProviders]);
 
   const selectedModel = useMemo(() => {
     const modelId = data.model ?? DEFAULT_IMAGE_MODEL_ID;
-    return getImageModel(modelId);
-  }, [data.model]);
-  const providerApiKey = apiKeys[selectedModel.providerId] ?? '';
+    return getRuntimeImageModel(modelId, customProviders);
+  }, [customProviders, data.model]);
+  const generationContext = useMemo(
+    () => resolveGenerationContext(selectedModel, apiKeys),
+    [apiKeys, selectedModel]
+  );
   const effectiveExtraParams = useMemo(
     () => ({
       ...(data.extraParams ?? {}),
@@ -465,7 +471,7 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
       return;
     }
 
-    if (!providerApiKey) {
+    if (!generationContext.isConfigured) {
       const errorMessage = t('node.imageEdit.apiKeyRequired');
       setError(errorMessage);
       void showErrorDialog(errorMessage, t('common.error'));
@@ -497,7 +503,9 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
     addEdge(id, newNodeId);
 
     try {
-      await canvasAiGateway.setApiKey(selectedModel.providerId, providerApiKey);
+      if (generationContext.shouldSetApiKey) {
+        await canvasAiGateway.setApiKey(selectedModel.providerId, generationContext.apiKey);
+      }
 
       let resolvedRequestAspectRatio = selectedAspectRatio.value;
       if (resolvedRequestAspectRatio === AUTO_REQUEST_ASPECT_RATIO) {
@@ -517,14 +525,17 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
         }
       }
 
-      const jobId = await canvasAiGateway.submitGenerateImageJob({
-        prompt,
-        model: requestResolution.requestModel,
-        size: selectedResolution.value,
-        aspectRatio: resolvedRequestAspectRatio,
-        referenceImages: incomingImages,
-        extraParams: effectiveExtraParams,
-      });
+      const jobId = await canvasAiGateway.submitGenerateImageJob(
+        buildNodeGeneratePayload({
+          prompt,
+          requestModel: requestResolution.requestModel,
+          size: selectedResolution.value,
+          aspectRatio: resolvedRequestAspectRatio,
+          referenceImages: incomingImages,
+          extraParams: effectiveExtraParams,
+          providerRuntime: generationContext.providerRuntime,
+        })
+      );
       const generationDebugContext: GenerationDebugContext = {
         sourceType: 'imageEdit',
         providerId: selectedModel.providerId,
@@ -544,7 +555,7 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
       updateNodeData(newNodeId, {
         generationJobId: jobId,
         generationSourceType: 'imageEdit',
-        generationProviderId: selectedModel.providerId,
+        generationProviderId: generationContext.resumeProviderId,
         generationClientSessionId: CURRENT_RUNTIME_SESSION_ID,
         generationDebugContext,
       });
@@ -592,7 +603,7 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
   }, [
     addNode,
     addEdge,
-    providerApiKey,
+    generationContext,
     findNodePosition,
     promptDraft,
     effectiveExtraParams,

@@ -44,6 +44,7 @@ pub struct GenerateRequestDto {
     pub aspect_ratio: String,
     pub reference_images: Option<Vec<String>>,
     pub extra_params: Option<HashMap<String, Value>>,
+    pub provider_runtime: Option<crate::ai::RuntimeProviderConfig>,
 }
 
 #[derive(Debug, Serialize)]
@@ -256,6 +257,16 @@ fn dto_from_record(record: &GenerationJobRecord) -> GenerationJobStatusDto {
     }
 }
 
+fn is_custom_openapi_runtime(runtime: Option<&crate::ai::RuntimeProviderConfig>) -> bool {
+    matches!(
+        runtime.map(|runtime| runtime.kind.as_str()),
+        Some("custom-openapi")
+    ) && matches!(
+        runtime.and_then(|runtime| runtime.protocol.as_deref()),
+        Some("openapi")
+    )
+}
+
 #[tauri::command]
 pub async fn set_api_key(provider: String, api_key: String) -> Result<(), String> {
     info!("Setting API key for provider: {}", provider);
@@ -278,13 +289,6 @@ pub async fn submit_generate_image_job(
 ) -> Result<String, String> {
     info!("Submitting generation job with model: {}", request.model);
 
-    let registry = get_registry();
-    let provider = registry
-        .resolve_provider_for_model(&request.model)
-        .or_else(|| registry.get_default_provider())
-        .cloned()
-        .ok_or_else(|| "Provider not found".to_string())?;
-
     let req = GenerateRequest {
         prompt: request.prompt,
         model: request.model,
@@ -292,9 +296,72 @@ pub async fn submit_generate_image_job(
         aspect_ratio: request.aspect_ratio,
         reference_images: request.reference_images,
         extra_params: request.extra_params,
+        provider_runtime: request.provider_runtime,
     };
 
     let job_id = Uuid::new_v4().to_string();
+
+    if is_custom_openapi_runtime(req.provider_runtime.as_ref()) {
+        let runtime = req
+            .provider_runtime
+            .clone()
+            .ok_or_else(|| "Missing custom provider runtime config".to_string())?;
+
+        insert_generation_job(
+            &app,
+            job_id.as_str(),
+            "openapi_compat",
+            "running",
+            false,
+            None,
+            None,
+            None,
+            None,
+        )?;
+        {
+            let mut active_set = active_non_resumable_job_ids().write().await;
+            active_set.insert(job_id.clone());
+        }
+
+        let app_handle = app.clone();
+        let spawned_job_id = job_id.clone();
+        tauri::async_runtime::spawn(async move {
+            let result = crate::ai::providers::openapi_compat::generate(&req, &runtime).await;
+            let update_result = match result {
+                Ok(image_source) => update_generation_job(
+                    &app_handle,
+                    spawned_job_id.as_str(),
+                    "succeeded",
+                    Some(image_source.as_str()),
+                    None,
+                ),
+                Err(error) => {
+                    let message = error.to_string();
+                    update_generation_job(
+                        &app_handle,
+                        spawned_job_id.as_str(),
+                        "failed",
+                        None,
+                        Some(message.as_str()),
+                    )
+                }
+            };
+            if let Err(error) = update_result {
+                info!("Failed to update custom openapi generation job: {}", error);
+            }
+            let mut active_set = active_non_resumable_job_ids().write().await;
+            active_set.remove(spawned_job_id.as_str());
+        });
+
+        return Ok(job_id);
+    }
+
+    let registry = get_registry();
+    let provider = registry
+        .resolve_provider_for_model(&req.model)
+        .or_else(|| registry.get_default_provider())
+        .cloned()
+        .ok_or_else(|| "Provider not found".to_string())?;
     let provider_id = provider.name().to_string();
 
     if provider.supports_task_resume() {
@@ -518,12 +585,6 @@ pub async fn get_generate_image_job(
 pub async fn generate_image(request: GenerateRequestDto) -> Result<String, String> {
     info!("Generating image with model: {}", request.model);
 
-    let registry = get_registry();
-    let provider = registry
-        .resolve_provider_for_model(&request.model)
-        .or_else(|| registry.get_default_provider())
-        .ok_or_else(|| "Provider not found".to_string())?;
-
     let req = GenerateRequest {
         prompt: request.prompt,
         model: request.model,
@@ -531,7 +592,24 @@ pub async fn generate_image(request: GenerateRequestDto) -> Result<String, Strin
         aspect_ratio: request.aspect_ratio,
         reference_images: request.reference_images,
         extra_params: request.extra_params,
+        provider_runtime: request.provider_runtime,
     };
+
+    if is_custom_openapi_runtime(req.provider_runtime.as_ref()) {
+        let runtime = req
+            .provider_runtime
+            .clone()
+            .ok_or_else(|| "Missing custom provider runtime config".to_string())?;
+        return crate::ai::providers::openapi_compat::generate(&req, &runtime)
+            .await
+            .map_err(|error| error.to_string());
+    }
+
+    let registry = get_registry();
+    let provider = registry
+        .resolve_provider_for_model(&req.model)
+        .or_else(|| registry.get_default_provider())
+        .ok_or_else(|| "Provider not found".to_string())?;
 
     provider.generate(req).await.map_err(|e| e.to_string())
 }

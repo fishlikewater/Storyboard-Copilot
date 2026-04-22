@@ -9,12 +9,13 @@ import { imageUrlToDataUrl, persistImageLocally } from '@/features/canvas/applic
 import type { AiGateway, GenerateImagePayload } from '../application/ports';
 
 async function normalizeReferenceImages(payload: GenerateImagePayload): Promise<string[] | undefined> {
+  const isCustomOpenApi = payload.providerRuntime?.kind === 'custom-openapi';
   const isKieModel = payload.model.startsWith('kie/');
   const isFalModel = payload.model.startsWith('fal/');
   return payload.referenceImages
     ? await Promise.all(
       payload.referenceImages.map(async (imageUrl) =>
-        isKieModel || isFalModel
+        isCustomOpenApi || isKieModel || isFalModel
           ? await imageUrlToDataUrl(imageUrl)
           : await persistImageLocally(imageUrl)
       )
@@ -34,6 +35,7 @@ export const tauriAiGateway: AiGateway = {
       aspect_ratio: payload.aspectRatio,
       reference_images: normalizedReferenceImages,
       extra_params: payload.extraParams,
+      provider_runtime: payload.providerRuntime,
     });
   },
   submitGenerateImageJob: async (payload: GenerateImagePayload) => {
@@ -45,6 +47,7 @@ export const tauriAiGateway: AiGateway = {
       aspect_ratio: payload.aspectRatio,
       reference_images: normalizedReferenceImages,
       extra_params: payload.extraParams,
+      provider_runtime: payload.providerRuntime,
     });
   },
   getGenerateImageJob,

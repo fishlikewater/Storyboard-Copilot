@@ -1,4 +1,5 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
+import type { RuntimeProviderConfig } from '@/features/canvas/models';
 
 export interface GenerateRequest {
   prompt: string;
@@ -7,6 +8,7 @@ export interface GenerateRequest {
   aspect_ratio: string;
   reference_images?: string[];
   extra_params?: Record<string, unknown>;
+  provider_runtime?: RuntimeProviderConfig;
 }
 
 export type GenerationJobState = 'queued' | 'running' | 'succeeded' | 'failed' | 'not_found';
@@ -60,6 +62,15 @@ function sanitizeGenerateRequestForLog(request: GenerateRequest): Record<string,
       truncateBase64Like(item)
     ),
     extra_params: request.extra_params ?? {},
+    provider_runtime: request.provider_runtime
+      ? {
+        kind: request.provider_runtime.kind,
+        providerProfileId: request.provider_runtime.providerProfileId,
+        protocol: request.provider_runtime.protocol,
+        baseUrl: request.provider_runtime.baseUrl,
+        remoteModelId: request.provider_runtime.remoteModelId,
+      }
+      : undefined,
   };
 }
 

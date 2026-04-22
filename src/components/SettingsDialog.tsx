@@ -8,12 +8,14 @@ import { getVersion } from '@tauri-apps/api/app';
 import { open } from '@tauri-apps/plugin-dialog';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { CustomProviderSection } from '@/components/settings/CustomProviderSection';
 import { UiCheckbox, UiSelect } from '@/components/ui';
 import { UI_CONTENT_OVERLAY_INSET_CLASS, UI_DIALOG_TRANSITION_MS } from '@/components/ui/motion';
 import { useDialogTransition } from '@/components/ui/useDialogTransition';
 import { listModelProviders } from '@/features/canvas/models';
 import { GRSAI_NANO_BANANA_PRO_MODEL_OPTIONS } from '@/features/canvas/models/providers/grsai';
 import { GRSAI_CREDIT_TIERS } from '@/features/canvas/pricing/types';
+import { validateCustomProviders } from '@/stores/customProviderConfig';
 import providerGuideMarkdown from '../../docs/settings/provider-guide.md?raw';
 import type { SettingsCategory } from '@/features/settings/settingsEvents';
 
@@ -89,6 +91,7 @@ export function SettingsDialog({
   const { t, i18n } = useTranslation();
   const {
     apiKeys,
+    customProviders,
     grsaiNanoBananaProModel,
     hideProviderGuidePopover,
     downloadPresetPaths,
@@ -111,6 +114,7 @@ export function SettingsDialog({
     autoCheckAppUpdateOnLaunch,
     enableUpdateDialog,
     setProviderApiKey,
+    setCustomProviders,
     setGrsaiNanoBananaProModel,
     setDownloadPresetPaths,
     setUseUploadFilenameAsNodeTitle,
@@ -144,6 +148,7 @@ export function SettingsDialog({
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>(initialCategory);
   const [appVersion, setAppVersion] = useState<string>('');
   const [localApiKeys, setLocalApiKeys] = useState<Record<string, string>>(apiKeys);
+  const [localCustomProviders, setLocalCustomProviders] = useState(customProviders);
   const [localGrsaiNanoBananaProModel, setLocalGrsaiNanoBananaProModel] = useState(
     grsaiNanoBananaProModel
   );
@@ -185,6 +190,10 @@ export function SettingsDialog({
   const [localEnableUpdateDialog, setLocalEnableUpdateDialog] = useState(enableUpdateDialog);
   const [checkUpdateStatus, setCheckUpdateStatus] = useState<'' | 'checking' | 'has-update' | 'up-to-date' | 'failed'>('');
   const [revealedApiKeys, setRevealedApiKeys] = useState<Record<string, boolean>>({});
+  const customProviderValidationErrors = useMemo(
+    () => validateCustomProviders(localCustomProviders),
+    [localCustomProviders]
+  );
   const { shouldRender, isVisible } = useDialogTransition(isOpen, UI_DIALOG_TRANSITION_MS);
 
   useEffect(() => {
@@ -212,6 +221,7 @@ export function SettingsDialog({
       return;
     }
     setLocalApiKeys(apiKeys);
+    setLocalCustomProviders(customProviders);
     setLocalDownloadPresetPaths(downloadPresetPaths);
     setLocalGrsaiNanoBananaProModel(grsaiNanoBananaProModel);
     setLocalUseUploadFilenameAsNodeTitle(useUploadFilenameAsNodeTitle);
@@ -237,6 +247,28 @@ export function SettingsDialog({
     setLocalDownloadPathInput('');
   }, [
     isOpen,
+    apiKeys,
+    customProviders,
+    downloadPresetPaths,
+    grsaiNanoBananaProModel,
+    useUploadFilenameAsNodeTitle,
+    storyboardGenKeepStyleConsistent,
+    storyboardGenDisableTextInImage,
+    storyboardGenAutoInferEmptyFrame,
+    ignoreAtTagWhenCopyingAndGenerating,
+    enableStoryboardGenGridPreviewShortcut,
+    showStoryboardGenAdvancedRatioControls,
+    showNodePrice,
+    priceDisplayCurrencyMode,
+    usdToCnyRate,
+    preferDiscountedPrice,
+    grsaiCreditTierId,
+    uiRadiusPreset,
+    themeTonePreset,
+    accentColor,
+    canvasEdgeRoutingMode,
+    autoCheckAppUpdateOnLaunch,
+    enableUpdateDialog,
   ]);
 
   useEffect(() => {
@@ -248,9 +280,15 @@ export function SettingsDialog({
   }, [initialCategory, isOpen]);
 
   const handleSave = useCallback(() => {
+    if (customProviderValidationErrors.length > 0) {
+      setActiveCategory('providers');
+      return;
+    }
+
     providers.forEach((provider) => {
       setProviderApiKey(provider.id, localApiKeys[provider.id] ?? '');
     });
+    setCustomProviders(localCustomProviders);
     setGrsaiNanoBananaProModel(localGrsaiNanoBananaProModel);
     setDownloadPresetPaths(localDownloadPresetPaths);
     setUseUploadFilenameAsNodeTitle(localUseUploadFilenameAsNodeTitle);
@@ -274,6 +312,8 @@ export function SettingsDialog({
     onClose();
   }, [
     localApiKeys,
+    localCustomProviders,
+    customProviderValidationErrors,
     localDownloadPresetPaths,
     localGrsaiNanoBananaProModel,
     localUseUploadFilenameAsNodeTitle,
@@ -296,6 +336,7 @@ export function SettingsDialog({
     localEnableUpdateDialog,
     providers,
     setProviderApiKey,
+    setCustomProviders,
     setGrsaiNanoBananaProModel,
     setDownloadPresetPaths,
     setUseUploadFilenameAsNodeTitle,
@@ -608,13 +649,19 @@ export function SettingsDialog({
                       </div>
                     );
                   })}
+
+                  <CustomProviderSection
+                    providers={localCustomProviders}
+                    onChange={setLocalCustomProviders}
+                  />
                 </div>
 
                 <div className="px-6 py-4 border-t border-border-dark flex justify-end">
                   <button
                     onClick={handleSave}
+                    disabled={customProviderValidationErrors.length > 0}
                     className="px-4 py-2 text-sm font-medium bg-accent text-white rounded
-                             hover:bg-accent/80 transition-colors"
+                             transition-colors disabled:cursor-not-allowed disabled:opacity-50 hover:bg-accent/80"
                   >
                     {t('common.save')}
                   </button>

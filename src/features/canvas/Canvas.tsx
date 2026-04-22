@@ -26,7 +26,7 @@ import '@xyflow/react/dist/style.css';
 
 import { useCanvasStore } from '@/stores/canvasStore';
 import { useProjectStore } from '@/stores/projectStore';
-import { getConfiguredApiKeyCount, useSettingsStore } from '@/stores/settingsStore';
+import { getConfiguredProviderCount, useSettingsStore } from '@/stores/settingsStore';
 import { canvasAiGateway, canvasEventBus } from '@/features/canvas/application/canvasServices';
 import {
   CANVAS_NODE_TYPES,
@@ -301,7 +301,7 @@ export function Canvas() {
   const apiKeys = useSettingsStore((state) => state.apiKeys);
   const providerIds = useMemo(() => listModelProviders().map((provider) => provider.id), []);
   const configuredApiKeyCount = useSettingsStore((state) =>
-    getConfiguredApiKeyCount(state.apiKeys, providerIds)
+    getConfiguredProviderCount(state.apiKeys, state.customProviders, providerIds)
   );
 
   const getCurrentProject = useProjectStore((state) => state.getCurrentProject);

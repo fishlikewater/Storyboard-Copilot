@@ -1,4 +1,5 @@
 import type { XYPosition } from '@xyflow/react';
+import type { RuntimeProviderConfig } from '@/features/canvas/models';
 
 import type {
   CanvasEdge,
@@ -38,6 +39,7 @@ export interface GenerateImagePayload {
   aspectRatio: string;
   referenceImages?: string[];
   extraParams?: Record<string, unknown>;
+  providerRuntime?: RuntimeProviderConfig;
 }
 
 export interface AiGateway {

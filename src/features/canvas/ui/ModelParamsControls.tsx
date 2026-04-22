@@ -7,7 +7,7 @@ import { AUTO_REQUEST_ASPECT_RATIO } from '@/features/canvas/domain/canvasNodes'
 import {
   getModelProvider,
   type AspectRatioOption,
-  type ImageModelDefinition,
+  type RuntimeImageModelDefinition,
   type ResolutionOption,
 } from '@/features/canvas/models';
 import {
@@ -23,8 +23,8 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { openSettingsDialog } from '@/features/settings/settingsEvents';
 
 interface ModelParamsControlsProps {
-  imageModels: ImageModelDefinition[];
-  selectedModel: ImageModelDefinition;
+  imageModels: RuntimeImageModelDefinition[];
+  selectedModel: RuntimeImageModelDefinition;
   resolutionOptions: ResolutionOption[];
   selectedResolution: ResolutionOption;
   selectedAspectRatio: AspectRatioOption;
@@ -54,6 +54,12 @@ interface ModelParamsControlsProps {
 interface PanelAnchor {
   left: number;
   top: number;
+}
+
+interface ProviderOptionItem {
+  id: string;
+  label: string;
+  configured: boolean;
 }
 
 const OTHER_PARAMS_PANEL_CLASS_NAME = 'w-[280px] p-3';
@@ -184,34 +190,64 @@ export const ModelParamsControls = memo(({
   const [panelProviderId, setPanelProviderId] = useState(selectedModel.providerId);
   const [missingKeyProviderName, setMissingKeyProviderName] = useState<string | null>(null);
   const apiKeys = useSettingsStore((state) => state.apiKeys);
+  const showResolutionControls = selectedModel.supportsResolutionSelection;
 
   const selectedProvider = useMemo(
-    () => getModelProvider(selectedModel.providerId),
-    [selectedModel.providerId]
+    () =>
+      selectedModel.runtimeProvider.kind === 'custom-openapi'
+        ? {
+          id: selectedModel.providerId,
+          name: selectedModel.runtimeProvider.providerDisplayName ?? selectedModel.displayName,
+          label: selectedModel.runtimeProvider.providerDisplayName ?? selectedModel.displayName,
+        }
+        : getModelProvider(selectedModel.providerId),
+    [selectedModel]
   );
   const selectedModelName = useMemo(
     () => selectedModel.displayName.replace(/\s*\([^)]*\)\s*$/u, '').trim() || selectedModel.displayName,
     [selectedModel.displayName]
   );
   const selectedProviderName = selectedProvider.label || selectedProvider.name;
-  const providerOptions = useMemo(() => {
+  const providerOptions = useMemo<ProviderOptionItem[]>(() => {
     const providerOrder = ['kie', 'ppio', 'fal', 'grsai'];
     const providerIndex = new Map(providerOrder.map((id, index) => [id, index]));
-    const uniqueProviderIds = Array.from(new Set(imageModels.map((model) => model.providerId)));
-    return uniqueProviderIds
-      .map((providerId) => getModelProvider(providerId))
+    const uniqueProviders = Array.from(
+      new Map(imageModels.map((model) => [model.providerId, model])).values()
+    );
+    return uniqueProviders
+      .map((model) => {
+        if (model.runtimeProvider.kind === 'custom-openapi') {
+          return {
+            id: model.providerId,
+            label: model.runtimeProvider.providerDisplayName ?? model.displayName,
+            configured:
+              Boolean(model.runtimeProvider.baseUrl?.trim()) &&
+              Boolean(model.runtimeProvider.apiKey?.trim()),
+          };
+        }
+
+        const provider = getModelProvider(model.providerId);
+        return {
+          id: provider.id,
+          label: provider.label || provider.name,
+          configured: Boolean(apiKeys[provider.id]?.trim()),
+        };
+      })
       .sort((left, right) => {
         const leftIndex = providerIndex.get(left.id) ?? Number.MAX_SAFE_INTEGER;
         const rightIndex = providerIndex.get(right.id) ?? Number.MAX_SAFE_INTEGER;
-        return leftIndex - rightIndex;
+        if (leftIndex !== rightIndex) {
+          return leftIndex - rightIndex;
+        }
+        return left.label.localeCompare(right.label);
       });
-  }, [imageModels]);
+  }, [apiKeys, imageModels]);
   const providerModels = useMemo(
     () => imageModels.filter((model) => model.providerId === panelProviderId),
     [imageModels, panelProviderId]
   );
   const modelGroups = useMemo(() => {
-    const grouped = new Map<string, ImageModelDefinition[]>();
+    const grouped = new Map<string, RuntimeImageModelDefinition[]>();
     providerModels.forEach((model) => {
       const normalizedName = model.displayName.replace(/\s*\([^)]*\)\s*$/u, '').trim();
       const key = normalizedName.length > 0 ? normalizedName : model.displayName;
@@ -426,7 +462,9 @@ export const ModelParamsControls = memo(({
         >
           <SlidersHorizontal className={paramsIconClassName} />
           <span className={paramsPrimaryTextClassName}>{selectedAspectRatio.label}</span>
-          <span className={paramsSecondaryTextClassName}>· {selectedResolution.label}</span>
+          {showResolutionControls && (
+            <span className={paramsSecondaryTextClassName}>· {selectedResolution.label}</span>
+          )}
         </UiChipButton>
       </div>
 
@@ -483,10 +521,9 @@ export const ModelParamsControls = memo(({
                           }`}
                         onClick={(event) => {
                           event.stopPropagation();
-                          const providerApiKey = (apiKeys[provider.id] ?? '').trim();
-                          if (!providerApiKey) {
+                          if (!provider.configured) {
                             setOpenPanel(null);
-                            setMissingKeyProviderName(provider.label || provider.name);
+                            setMissingKeyProviderName(provider.label);
                             return;
                           }
                           if (provider.id !== panelProviderId) {
@@ -498,7 +535,7 @@ export const ModelParamsControls = memo(({
                           setPanelProviderId(provider.id);
                         }}
                       >
-                        {provider.label || provider.name}
+                        {provider.label}
                       </button>
                     );
                   })}
@@ -547,31 +584,33 @@ export const ModelParamsControls = memo(({
           style={buildPanelStyle(paramsPanelAnchor, paramsPanelAlign)}
         >
           <UiPanel className={paramsPanelClassName}>
-            <div>
-              <div className="mb-2 text-xs text-text-muted">{t('modelParams.quality')}</div>
-              <div className="grid grid-cols-4 gap-1 rounded-xl border border-[rgba(255,255,255,0.1)] bg-bg-dark/65 p-1">
-                {resolutionOptions.map((item) => {
-                  const active = item.value === selectedResolution.value;
-                  return (
-                    <button
-                      key={item.value}
-                      className={`h-8 rounded-lg text-sm transition-colors ${active
-                        ? 'bg-surface-dark text-text-dark'
-                        : 'text-text-muted hover:bg-bg-dark'
-                        }`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onResolutionChange(item.value);
-                      }}
-                    >
-                      {item.label}
-                    </button>
-                  );
-                })}
+            {showResolutionControls && (
+              <div>
+                <div className="mb-2 text-xs text-text-muted">{t('modelParams.quality')}</div>
+                <div className="grid grid-cols-4 gap-1 rounded-xl border border-[rgba(255,255,255,0.1)] bg-bg-dark/65 p-1">
+                  {resolutionOptions.map((item) => {
+                    const active = item.value === selectedResolution.value;
+                    return (
+                      <button
+                        key={item.value}
+                        className={`h-8 rounded-lg text-sm transition-colors ${active
+                          ? 'bg-surface-dark text-text-dark'
+                          : 'text-text-muted hover:bg-bg-dark'
+                          }`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onResolutionChange(item.value);
+                        }}
+                      >
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="mt-3">
+            <div className={showResolutionControls ? 'mt-3' : ''}>
               <div className="mb-2 text-xs text-text-muted">{t('modelParams.aspectRatio')}</div>
               <div className="grid grid-cols-5 gap-1 rounded-xl border border-[rgba(255,255,255,0.1)] bg-bg-dark/65 p-1">
                 {aspectRatioOptions.map((item) => {

@@ -53,10 +53,12 @@ import {
   removeTextRange,
   resolveReferenceAwareDeleteRange,
 } from '@/features/canvas/application/referenceTokenEditing';
+import { resolveGenerationContext } from '@/features/canvas/application/runtimeGenerationContext';
+import { buildNodeGeneratePayload } from '@/features/canvas/application/buildNodeGeneratePayload';
 import {
   DEFAULT_IMAGE_MODEL_ID,
-  getImageModel,
-  listImageModels,
+  getRuntimeImageModel,
+  listRuntimeImageModels,
   resolveImageModelResolution,
   resolveImageModelResolutions,
 } from '@/features/canvas/models';
@@ -550,6 +552,7 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
   const addEdge = useCanvasStore((state) => state.addEdge);
   const findNodePosition = useCanvasStore((state) => state.findNodePosition);
   const apiKeys = useSettingsStore((state) => state.apiKeys);
+  const customProviders = useSettingsStore((state) => state.customProviders);
   const grsaiNanoBananaProModel = useSettingsStore((state) => state.grsaiNanoBananaProModel);
   const storyboardGenKeepStyleConsistent = useSettingsStore(
     (state) => state.storyboardGenKeepStyleConsistent
@@ -615,13 +618,16 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
     [incomingImageItems]
   );
 
-  const imageModels = useMemo(() => listImageModels(), []);
+  const imageModels = useMemo(() => listRuntimeImageModels(customProviders), [customProviders]);
 
   const selectedModel = useMemo(() => {
     const modelId = nodeData.model ?? DEFAULT_IMAGE_MODEL_ID;
-    return getImageModel(modelId);
-  }, [nodeData.model]);
-  const providerApiKey = apiKeys[selectedModel.providerId] ?? '';
+    return getRuntimeImageModel(modelId, customProviders);
+  }, [customProviders, nodeData.model]);
+  const generationContext = useMemo(
+    () => resolveGenerationContext(selectedModel, apiKeys),
+    [apiKeys, selectedModel]
+  );
   const effectiveExtraParams = useMemo(
     () => ({
       ...(nodeData.extraParams ?? {}),
@@ -1058,7 +1064,7 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
       return;
     }
 
-    if (!providerApiKey) {
+    if (!generationContext.isConfigured) {
       const errorMessage = '请在设置中填写 API Key';
       setError(errorMessage);
       void showErrorDialog(errorMessage, '错误');
@@ -1099,7 +1105,9 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
     setError(null);
 
     try {
-      await canvasAiGateway.setApiKey(selectedModel.providerId, providerApiKey);
+      if (generationContext.shouldSetApiKey) {
+        await canvasAiGateway.setApiKey(selectedModel.providerId, generationContext.apiKey);
+      }
 
       // 生成网格图片作为最后一张参考图片
       const gridImageDataUrl = generateGridImageDataUrl(
@@ -1119,14 +1127,17 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
           return sanitizeStoryboardText(description, ignoreAtTagWhenCopyingAndGenerating);
         });
 
-      const jobId = await canvasAiGateway.submitGenerateImageJob({
-        prompt,
-        model: requestResolution.requestModel,
-        size: selectedResolution.value,
-        aspectRatio: resolvedRequestAspectRatio,
-        referenceImages: allReferenceImages,
-        extraParams: effectiveExtraParams,
-      });
+      const jobId = await canvasAiGateway.submitGenerateImageJob(
+        buildNodeGeneratePayload({
+          prompt,
+          requestModel: requestResolution.requestModel,
+          size: selectedResolution.value,
+          aspectRatio: resolvedRequestAspectRatio,
+          referenceImages: allReferenceImages,
+          extraParams: effectiveExtraParams,
+          providerRuntime: generationContext.providerRuntime,
+        })
+      );
       const generationDebugContext: GenerationDebugContext = {
         sourceType: 'storyboardGen',
         providerId: selectedModel.providerId,
@@ -1146,7 +1157,7 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
       updateNodeData(newNodeId, {
         generationJobId: jobId,
         generationSourceType: 'storyboardGen',
-        generationProviderId: selectedModel.providerId,
+        generationProviderId: generationContext.resumeProviderId,
         generationClientSessionId: CURRENT_RUNTIME_SESSION_ID,
         generationDebugContext,
         generationStoryboardMetadata: {
@@ -1194,7 +1205,7 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
       });
     }
   }, [
-    providerApiKey,
+    generationContext,
     nodeData,
     incomingImages,
     requestResolution.requestModel,

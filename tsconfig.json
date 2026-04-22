@@ -22,6 +22,7 @@
 
     /* Paths */
     "baseUrl": ".",
+    "types": ["vite/client", "vitest/globals"],
     "paths": {
       "@/*": ["src/*"]
     }

@@ -7,6 +7,18 @@ use tracing::info;
 
 use error::AIError;
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeProviderConfig {
+    pub kind: String,
+    pub provider_profile_id: Option<String>,
+    pub provider_display_name: Option<String>,
+    pub protocol: Option<String>,
+    pub base_url: Option<String>,
+    pub api_key: Option<String>,
+    pub remote_model_id: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct GenerateRequest {
     pub prompt: String,
@@ -15,6 +27,7 @@ pub struct GenerateRequest {
     pub aspect_ratio: String,
     pub reference_images: Option<Vec<String>>,
     pub extra_params: Option<HashMap<String, serde_json::Value>>,
+    pub provider_runtime: Option<RuntimeProviderConfig>,
 }
 
 #[derive(Debug, Clone)]

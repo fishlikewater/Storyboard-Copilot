@@ -6,6 +6,7 @@ pub mod ppio;
 pub mod grsai;
 pub mod kie;
 pub mod fal;
+pub mod openapi_compat;
 
 pub use fal::FalProvider;
 pub use grsai::GrsaiProvider;

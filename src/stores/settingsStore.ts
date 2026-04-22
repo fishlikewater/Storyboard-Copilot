@@ -6,6 +6,10 @@ import {
   type GrsaiCreditTierId,
   type PriceDisplayCurrencyMode,
 } from '@/features/canvas/pricing/types';
+import {
+  normalizeCustomProviders,
+  type CustomProviderConfig,
+} from '@/stores/customProviderConfig';
 
 export type UiRadiusPreset = 'compact' | 'default' | 'large';
 export type ThemeTonePreset = 'neutral' | 'warm' | 'cool';
@@ -16,6 +20,7 @@ export const DEFAULT_GRSAI_NANO_BANANA_PRO_MODEL = 'nano-banana-pro';
 interface SettingsState {
   isHydrated: boolean;
   apiKeys: ProviderApiKeys;
+  customProviders: CustomProviderConfig[];
   grsaiNanoBananaProModel: string;
   hideProviderGuidePopover: boolean;
   downloadPresetPaths: string[];
@@ -37,7 +42,9 @@ interface SettingsState {
   canvasEdgeRoutingMode: CanvasEdgeRoutingMode;
   autoCheckAppUpdateOnLaunch: boolean;
   enableUpdateDialog: boolean;
+  markHydrated: () => void;
   setProviderApiKey: (providerId: string, key: string) => void;
+  setCustomProviders: (providers: CustomProviderConfig[]) => void;
   setGrsaiNanoBananaProModel: (model: string) => void;
   setHideProviderGuidePopover: (hide: boolean) => void;
   setDownloadPresetPaths: (paths: string[]) => void;
@@ -158,11 +165,37 @@ export function getConfiguredApiKeyCount(
   }, 0);
 }
 
+export function getConfiguredCustomProviderCount(
+  customProviders: CustomProviderConfig[]
+): number {
+  return customProviders.reduce((count, provider) => {
+    const hasEnabledModel = provider.models.some((model) => model.enabled);
+    const isConfigured =
+      provider.baseUrl.trim().length > 0 &&
+      provider.apiKey.trim().length > 0 &&
+      hasEnabledModel;
+
+    return isConfigured ? count + 1 : count;
+  }, 0);
+}
+
+export function getConfiguredProviderCount(
+  apiKeys: ProviderApiKeys,
+  customProviders: CustomProviderConfig[],
+  providerIds?: readonly string[]
+): number {
+  return (
+    getConfiguredApiKeyCount(apiKeys, providerIds) +
+    getConfiguredCustomProviderCount(customProviders)
+  );
+}
+
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
       isHydrated: false,
       apiKeys: {},
+      customProviders: [],
       grsaiNanoBananaProModel: DEFAULT_GRSAI_NANO_BANANA_PRO_MODEL,
       hideProviderGuidePopover: false,
       downloadPresetPaths: [],
@@ -184,6 +217,7 @@ export const useSettingsStore = create<SettingsState>()(
       canvasEdgeRoutingMode: 'spline',
       autoCheckAppUpdateOnLaunch: true,
       enableUpdateDialog: true,
+      markHydrated: () => set({ isHydrated: true }),
       setProviderApiKey: (providerId, key) =>
         set((state) => ({
           apiKeys: {
@@ -191,6 +225,8 @@ export const useSettingsStore = create<SettingsState>()(
             [providerId]: normalizeApiKey(key),
           },
         })),
+      setCustomProviders: (customProviders) =>
+        set({ customProviders: normalizeCustomProviders(customProviders) }),
       setGrsaiNanoBananaProModel: (model) =>
         set({
           grsaiNanoBananaProModel: normalizeGrsaiNanoBananaProModel(model),
@@ -236,19 +272,20 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'settings-storage',
-      version: 10,
+      version: 11,
       onRehydrateStorage: () => {
-        return (_state, error) => {
+        return (state, error) => {
           if (error) {
             console.error('failed to hydrate settings storage', error);
           }
-          useSettingsStore.setState({ isHydrated: true });
+          state?.markHydrated();
         };
       },
       migrate: (persistedState: unknown) => {
         const state = (persistedState ?? {}) as {
           apiKey?: string;
           apiKeys?: ProviderApiKeys;
+          customProviders?: CustomProviderConfig[];
           ignoreAtTagWhenCopyingAndGenerating?: boolean;
           grsaiNanoBananaProModel?: string;
           hideProviderGuidePopover?: boolean;
@@ -266,6 +303,7 @@ export const useSettingsStore = create<SettingsState>()(
         };
 
         const migratedApiKeys = normalizeApiKeys(state.apiKeys);
+        const migratedCustomProviders = normalizeCustomProviders(state.customProviders);
         const ignoreAtTagWhenCopyingAndGenerating =
           state.ignoreAtTagWhenCopyingAndGenerating ?? true;
         if (Object.keys(migratedApiKeys).length > 0) {
@@ -273,6 +311,7 @@ export const useSettingsStore = create<SettingsState>()(
             ...(persistedState as object),
             isHydrated: true,
             apiKeys: migratedApiKeys,
+            customProviders: migratedCustomProviders,
             ignoreAtTagWhenCopyingAndGenerating,
             grsaiNanoBananaProModel: normalizeGrsaiNanoBananaProModel(
               state.grsaiNanoBananaProModel
@@ -300,6 +339,7 @@ export const useSettingsStore = create<SettingsState>()(
           ...(persistedState as object),
           isHydrated: true,
           apiKeys: state.apiKey ? { ppio: normalizeApiKey(state.apiKey) } : {},
+          customProviders: migratedCustomProviders,
           ignoreAtTagWhenCopyingAndGenerating,
           grsaiNanoBananaProModel: normalizeGrsaiNanoBananaProModel(
             state.grsaiNanoBananaProModel
