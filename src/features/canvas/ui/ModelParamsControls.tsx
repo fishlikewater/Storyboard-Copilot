@@ -19,6 +19,7 @@ import {
   UiCheckbox,
   UiSelect,
 } from '@/components/ui';
+import type { SettingsCategory } from '@/features/settings/settingsEvents';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { openSettingsDialog } from '@/features/settings/settingsEvents';
 
@@ -60,6 +61,7 @@ interface ProviderOptionItem {
   id: string;
   label: string;
   configured: boolean;
+  settingsCategory: SettingsCategory;
 }
 
 const OTHER_PARAMS_PANEL_CLASS_NAME = 'w-[280px] p-3';
@@ -188,7 +190,7 @@ export const ModelParamsControls = memo(({
   const [paramsAnchorBaseWidth, setParamsAnchorBaseWidth] = useState<number | null>(null);
   const [otherParamsAnchorBaseWidth, setOtherParamsAnchorBaseWidth] = useState<number | null>(null);
   const [panelProviderId, setPanelProviderId] = useState(selectedModel.providerId);
-  const [missingKeyProviderName, setMissingKeyProviderName] = useState<string | null>(null);
+  const [missingConfigProvider, setMissingConfigProvider] = useState<ProviderOptionItem | null>(null);
   const apiKeys = useSettingsStore((state) => state.apiKeys);
   const showResolutionControls = selectedModel.supportsResolutionSelection;
 
@@ -223,6 +225,7 @@ export const ModelParamsControls = memo(({
             configured:
               Boolean(model.runtimeProvider.baseUrl?.trim()) &&
               Boolean(model.runtimeProvider.apiKey?.trim()),
+            settingsCategory: 'suppliers' as const,
           };
         }
 
@@ -231,6 +234,7 @@ export const ModelParamsControls = memo(({
           id: provider.id,
           label: provider.label || provider.name,
           configured: Boolean(apiKeys[provider.id]?.trim()),
+          settingsCategory: 'providers' as const,
         };
       })
       .sort((left, right) => {
@@ -523,7 +527,7 @@ export const ModelParamsControls = memo(({
                           event.stopPropagation();
                           if (!provider.configured) {
                             setOpenPanel(null);
-                            setMissingKeyProviderName(provider.label);
+                            setMissingConfigProvider(provider);
                             return;
                           }
                           if (provider.id !== panelProviderId) {
@@ -820,9 +824,9 @@ export const ModelParamsControls = memo(({
 
       {typeof document !== 'undefined' && createPortal(
         <UiModal
-          isOpen={Boolean(missingKeyProviderName)}
+          isOpen={missingConfigProvider !== null}
           title={t('modelParams.providerKeyRequiredTitle')}
-          onClose={() => setMissingKeyProviderName(null)}
+          onClose={() => setMissingConfigProvider(null)}
           widthClassName="w-[420px]"
           containerClassName="z-[120]"
           footer={(
@@ -830,7 +834,7 @@ export const ModelParamsControls = memo(({
               <UiButton
                 variant="muted"
                 size="sm"
-                onClick={() => setMissingKeyProviderName(null)}
+                onClick={() => setMissingConfigProvider(null)}
               >
                 {t('common.cancel')}
               </UiButton>
@@ -838,9 +842,10 @@ export const ModelParamsControls = memo(({
                 variant="primary"
                 size="sm"
                 onClick={() => {
-                  setMissingKeyProviderName(null);
+                  const targetCategory = missingConfigProvider?.settingsCategory ?? 'providers';
+                  setMissingConfigProvider(null);
                   setOpenPanel(null);
-                  openSettingsDialog({ category: 'providers' });
+                  openSettingsDialog({ category: targetCategory });
                 }}
               >
                 {t('modelParams.goConfigure')}
@@ -849,7 +854,9 @@ export const ModelParamsControls = memo(({
           )}
         >
           <p className="text-sm text-text-muted">
-            {t('modelParams.providerKeyRequiredDesc', { provider: missingKeyProviderName ?? '' })}
+            {t('modelParams.providerKeyRequiredDesc', {
+              provider: missingConfigProvider?.label ?? '',
+            })}
           </p>
         </UiModal>,
         document.body

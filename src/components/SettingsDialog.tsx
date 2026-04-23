@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { X, Eye, EyeOff, FolderOpen, Plus, Trash2 } from 'lucide-react';
-import { Trans, useTranslation } from 'react-i18next';
+import { X, FolderOpen, Plus, Trash2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -8,16 +8,18 @@ import { getVersion } from '@tauri-apps/api/app';
 import { open } from '@tauri-apps/plugin-dialog';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { useSettingsStore } from '@/stores/settingsStore';
-import { CustomProviderSection } from '@/components/settings/CustomProviderSection';
+import { BuiltinProviderSettingsSection } from '@/components/settings/BuiltinProviderSettingsSection';
+import { CustomProviderEditorDialog } from '@/components/settings/CustomProviderEditorDialog';
+import { CustomProvidersPage } from '@/components/settings/CustomProvidersPage';
+import { DeleteProviderConfirmDialog } from '@/components/settings/DeleteProviderConfirmDialog';
 import { UiCheckbox, UiSelect } from '@/components/ui';
 import { UI_CONTENT_OVERLAY_INSET_CLASS, UI_DIALOG_TRANSITION_MS } from '@/components/ui/motion';
 import { useDialogTransition } from '@/components/ui/useDialogTransition';
 import { listModelProviders } from '@/features/canvas/models';
-import { GRSAI_NANO_BANANA_PRO_MODEL_OPTIONS } from '@/features/canvas/models/providers/grsai';
 import { GRSAI_CREDIT_TIERS } from '@/features/canvas/pricing/types';
-import { validateCustomProviders } from '@/stores/customProviderConfig';
 import providerGuideMarkdown from '../../docs/settings/provider-guide.md?raw';
 import type { SettingsCategory } from '@/features/settings/settingsEvents';
+import type { CustomProviderConfig } from '@/stores/customProviderConfig';
 
 interface SettingsDialogProps {
   isOpen: boolean;
@@ -32,20 +34,6 @@ interface SettingsCheckboxCardProps {
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
 }
-
-const PROVIDER_REGISTER_URLS: Record<string, string> = {
-  ppio: 'https://ppio.com/user/register?invited_by=WGY0DZ',
-  grsai: 'https://grsai.com',
-  kie: 'https://kie.ai?ref=eef20ef0b0595cad227d45b29c635f6c',
-  fal: 'https://fal.ai',
-};
-
-const PROVIDER_GET_KEY_URLS: Record<string, string> = {
-  ppio: 'https://ppio.com/settings/key-management',
-  grsai: 'https://grsai.com/zh/dashboard/api-keys',
-  kie: 'https://kie.ai/api-key',
-  fal: 'https://fal.ai/dashboard/keys',
-};
 
 function SettingsCheckboxCard({
   title,
@@ -148,7 +136,6 @@ export function SettingsDialog({
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>(initialCategory);
   const [appVersion, setAppVersion] = useState<string>('');
   const [localApiKeys, setLocalApiKeys] = useState<Record<string, string>>(apiKeys);
-  const [localCustomProviders, setLocalCustomProviders] = useState(customProviders);
   const [localGrsaiNanoBananaProModel, setLocalGrsaiNanoBananaProModel] = useState(
     grsaiNanoBananaProModel
   );
@@ -190,11 +177,18 @@ export function SettingsDialog({
   const [localEnableUpdateDialog, setLocalEnableUpdateDialog] = useState(enableUpdateDialog);
   const [checkUpdateStatus, setCheckUpdateStatus] = useState<'' | 'checking' | 'has-update' | 'up-to-date' | 'failed'>('');
   const [revealedApiKeys, setRevealedApiKeys] = useState<Record<string, boolean>>({});
-  const customProviderValidationErrors = useMemo(
-    () => validateCustomProviders(localCustomProviders),
-    [localCustomProviders]
-  );
+  const [isCreateProviderDialogOpen, setIsCreateProviderDialogOpen] = useState(false);
+  const [editingProviderId, setEditingProviderId] = useState<string | null>(null);
+  const [pendingDeleteProviderId, setPendingDeleteProviderId] = useState<string | null>(null);
   const { shouldRender, isVisible } = useDialogTransition(isOpen, UI_DIALOG_TRANSITION_MS);
+  const editingProvider = useMemo(
+    () => customProviders.find((provider) => provider.id === editingProviderId) ?? null,
+    [customProviders, editingProviderId]
+  );
+  const pendingDeleteProvider = useMemo(
+    () => customProviders.find((provider) => provider.id === pendingDeleteProviderId) ?? null,
+    [customProviders, pendingDeleteProviderId]
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -221,7 +215,6 @@ export function SettingsDialog({
       return;
     }
     setLocalApiKeys(apiKeys);
-    setLocalCustomProviders(customProviders);
     setLocalDownloadPresetPaths(downloadPresetPaths);
     setLocalGrsaiNanoBananaProModel(grsaiNanoBananaProModel);
     setLocalUseUploadFilenameAsNodeTitle(useUploadFilenameAsNodeTitle);
@@ -245,10 +238,12 @@ export function SettingsDialog({
     setCheckUpdateStatus('');
     setRevealedApiKeys({});
     setLocalDownloadPathInput('');
+    setIsCreateProviderDialogOpen(false);
+    setEditingProviderId(null);
+    setPendingDeleteProviderId(null);
   }, [
     isOpen,
     apiKeys,
-    customProviders,
     downloadPresetPaths,
     grsaiNanoBananaProModel,
     useUploadFilenameAsNodeTitle,
@@ -280,15 +275,9 @@ export function SettingsDialog({
   }, [initialCategory, isOpen]);
 
   const handleSave = useCallback(() => {
-    if (customProviderValidationErrors.length > 0) {
-      setActiveCategory('providers');
-      return;
-    }
-
     providers.forEach((provider) => {
       setProviderApiKey(provider.id, localApiKeys[provider.id] ?? '');
     });
-    setCustomProviders(localCustomProviders);
     setGrsaiNanoBananaProModel(localGrsaiNanoBananaProModel);
     setDownloadPresetPaths(localDownloadPresetPaths);
     setUseUploadFilenameAsNodeTitle(localUseUploadFilenameAsNodeTitle);
@@ -312,8 +301,6 @@ export function SettingsDialog({
     onClose();
   }, [
     localApiKeys,
-    localCustomProviders,
-    customProviderValidationErrors,
     localDownloadPresetPaths,
     localGrsaiNanoBananaProModel,
     localUseUploadFilenameAsNodeTitle,
@@ -359,6 +346,37 @@ export function SettingsDialog({
     setEnableUpdateDialog,
     onClose,
   ]);
+
+  const handleCloseProviderDialog = useCallback(() => {
+    setIsCreateProviderDialogOpen(false);
+    setEditingProviderId(null);
+  }, []);
+
+  const handleSaveProvider = useCallback(
+    (providerDraft: CustomProviderConfig) => {
+      const exists = customProviders.some((provider) => provider.id === providerDraft.id);
+      const nextProviders = exists
+        ? customProviders.map((provider) =>
+            provider.id === providerDraft.id ? providerDraft : provider
+          )
+        : [...customProviders, providerDraft];
+
+      setCustomProviders(nextProviders);
+      handleCloseProviderDialog();
+    },
+    [customProviders, handleCloseProviderDialog, setCustomProviders]
+  );
+
+  const handleConfirmDeleteProvider = useCallback(() => {
+    if (!pendingDeleteProviderId) {
+      return;
+    }
+
+    setCustomProviders(
+      customProviders.filter((provider) => provider.id !== pendingDeleteProviderId)
+    );
+    setPendingDeleteProviderId(null);
+  }, [customProviders, pendingDeleteProviderId, setCustomProviders]);
 
   const handleCheckUpdate = useCallback(async () => {
     if (!onCheckUpdate) {
@@ -473,6 +491,20 @@ export function SettingsDialog({
               </button>
 
               <button
+                onClick={() => setActiveCategory('suppliers')}
+                className={`
+                w-full flex items-center gap-3 px-4 py-2.5 text-left
+                transition-colors
+                ${activeCategory === 'suppliers'
+                    ? 'bg-accent/10 text-text-dark border-l-2 border-accent'
+                    : 'text-text-muted hover:bg-bg-dark hover:text-text-dark'
+                  }
+              `}
+              >
+                <span className="text-sm">{t('settings.suppliers')}</span>
+              </button>
+
+              <button
                 onClick={() => setActiveCategory('appearance')}
                 className={`
                 w-full flex items-center gap-3 px-4 py-2.5 text-left
@@ -543,129 +575,37 @@ export function SettingsDialog({
                   </p>
                 </div>
 
-                <div className="ui-scrollbar flex-1 space-y-4 overflow-y-auto p-6">
-                  {providers.map((provider) => {
-                    const displayName = i18n.language.startsWith('zh') ? provider.label : provider.name;
-                    const isRevealed = Boolean(revealedApiKeys[provider.id]);
-
-                    return (
-                      <div key={provider.id} className="rounded-lg border border-border-dark bg-bg-dark p-4">
-                        <div className="mb-3">
-                          <h3 className="text-sm font-medium text-text-dark">{displayName}</h3>
-                          {PROVIDER_REGISTER_URLS[provider.id] && PROVIDER_GET_KEY_URLS[provider.id] ? (
-                            <p className="text-xs text-text-muted">
-                              {t('settings.providerApiKeyGuidePrefix')}{' '}
-                              <a
-                                href={PROVIDER_REGISTER_URLS[provider.id]}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-accent hover:underline"
-                              >
-                                {t('settings.providerRegisterLink')}
-                              </a>
-                              {t('settings.providerApiKeyGuideMiddle')}{' '}
-                              <a
-                                href={PROVIDER_GET_KEY_URLS[provider.id]}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-accent hover:underline"
-                              >
-                                {t('settings.getApiKeyLink')}
-                              </a>
-                            </p>
-                          ) : (
-                            <p className="text-xs text-text-muted">{provider.id}</p>
-                          )}
-                        </div>
-
-                        <div className="relative">
-                          <input
-                            type={isRevealed ? 'text' : 'password'}
-                            value={localApiKeys[provider.id] ?? ''}
-                            onChange={(event) => {
-                              const nextValue = event.target.value;
-                              setLocalApiKeys((previous) => ({
-                                ...previous,
-                                [provider.id]: nextValue,
-                              }));
-                              setProviderApiKey(provider.id, nextValue);
-                            }}
-                            placeholder={t('settings.enterApiKey')}
-                            className="w-full rounded border border-border-dark bg-surface-dark px-3 py-2 pr-10 text-sm text-text-dark placeholder:text-text-muted"
-                          />
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setRevealedApiKeys((previous) => ({
-                                ...previous,
-                                [provider.id]: !isRevealed,
-                              }))
-                            }
-                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 hover:bg-bg-dark"
-                          >
-                            {isRevealed ? (
-                              <EyeOff className="h-4 w-4 text-text-muted" />
-                            ) : (
-                              <Eye className="h-4 w-4 text-text-muted" />
-                            )}
-                          </button>
-                        </div>
-
-                        {provider.id === 'grsai' && (
-                          <div className="mt-3">
-                            <div className="mb-1 text-xs font-medium text-text-dark">
-                              {t('settings.nanoBananaProModel')}
-                            </div>
-                            <p className="mb-2 text-xs text-text-muted">
-                              <Trans
-                                i18nKey="settings.nanoBananaProModelDesc"
-                                components={{
-                                  modelListLink: (
-                                    <a
-                                      href="https://grsai.com/zh/dashboard/models"
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="text-accent hover:underline"
-                                    />
-                                  ),
-                                }}
-                              />
-                            </p>
-                            <UiSelect
-                              value={localGrsaiNanoBananaProModel}
-                              onChange={(event) =>
-                                setLocalGrsaiNanoBananaProModel(event.target.value)
-                              }
-                              className="h-9 text-sm"
-                            >
-                              {GRSAI_NANO_BANANA_PRO_MODEL_OPTIONS.map((option) => (
-                                <option key={option} value={option}>
-                                  {option}
-                                </option>
-                              ))}
-                            </UiSelect>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-
-                  <CustomProviderSection
-                    providers={localCustomProviders}
-                    onChange={setLocalCustomProviders}
-                  />
-                </div>
+                <BuiltinProviderSettingsSection
+                  providers={providers}
+                  localApiKeys={localApiKeys}
+                  setLocalApiKeys={setLocalApiKeys}
+                  revealedApiKeys={revealedApiKeys}
+                  setRevealedApiKeys={setRevealedApiKeys}
+                  localGrsaiNanoBananaProModel={localGrsaiNanoBananaProModel}
+                  setLocalGrsaiNanoBananaProModel={setLocalGrsaiNanoBananaProModel}
+                  setProviderApiKey={setProviderApiKey}
+                />
 
                 <div className="px-6 py-4 border-t border-border-dark flex justify-end">
                   <button
                     onClick={handleSave}
-                    disabled={customProviderValidationErrors.length > 0}
                     className="px-4 py-2 text-sm font-medium bg-accent text-white rounded
                              transition-colors disabled:cursor-not-allowed disabled:opacity-50 hover:bg-accent/80"
                   >
                     {t('common.save')}
                   </button>
                 </div>
+              </>
+            )}
+
+            {activeCategory === 'suppliers' && (
+              <>
+                <CustomProvidersPage
+                  providers={customProviders}
+                  onAdd={() => setIsCreateProviderDialogOpen(true)}
+                  onEdit={setEditingProviderId}
+                  onDelete={setPendingDeleteProviderId}
+                />
               </>
             )}
 
@@ -1207,6 +1147,19 @@ export function SettingsDialog({
             </div>
           </div>
         )}
+        <CustomProviderEditorDialog
+          isOpen={isCreateProviderDialogOpen || editingProvider !== null}
+          mode={editingProvider ? 'edit' : 'create'}
+          initialProvider={editingProvider}
+          onClose={handleCloseProviderDialog}
+          onSave={handleSaveProvider}
+        />
+        <DeleteProviderConfirmDialog
+          isOpen={pendingDeleteProvider !== null}
+          providerName={pendingDeleteProvider?.name ?? ''}
+          onClose={() => setPendingDeleteProviderId(null)}
+          onConfirm={handleConfirmDeleteProvider}
+        />
       </div>
     </div>
   );
