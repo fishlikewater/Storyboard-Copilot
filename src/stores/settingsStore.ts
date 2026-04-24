@@ -10,6 +10,10 @@ import {
   normalizeCustomProviders,
   type CustomProviderConfig,
 } from '@/stores/customProviderConfig';
+import {
+  normalizePromptTemplates,
+  type PromptTemplateConfig,
+} from '@/stores/promptTemplateConfig';
 
 export type UiRadiusPreset = 'compact' | 'default' | 'large';
 export type ThemeTonePreset = 'neutral' | 'warm' | 'cool';
@@ -21,6 +25,7 @@ interface SettingsState {
   isHydrated: boolean;
   apiKeys: ProviderApiKeys;
   customProviders: CustomProviderConfig[];
+  promptTemplates: PromptTemplateConfig[];
   grsaiNanoBananaProModel: string;
   hideProviderGuidePopover: boolean;
   downloadPresetPaths: string[];
@@ -45,6 +50,7 @@ interface SettingsState {
   markHydrated: () => void;
   setProviderApiKey: (providerId: string, key: string) => void;
   setCustomProviders: (providers: CustomProviderConfig[]) => void;
+  setPromptTemplates: (templates: PromptTemplateConfig[]) => void;
   setGrsaiNanoBananaProModel: (model: string) => void;
   setHideProviderGuidePopover: (hide: boolean) => void;
   setDownloadPresetPaths: (paths: string[]) => void;
@@ -196,6 +202,7 @@ export const useSettingsStore = create<SettingsState>()(
       isHydrated: false,
       apiKeys: {},
       customProviders: [],
+      promptTemplates: [],
       grsaiNanoBananaProModel: DEFAULT_GRSAI_NANO_BANANA_PRO_MODEL,
       hideProviderGuidePopover: false,
       downloadPresetPaths: [],
@@ -227,6 +234,8 @@ export const useSettingsStore = create<SettingsState>()(
         })),
       setCustomProviders: (customProviders) =>
         set({ customProviders: normalizeCustomProviders(customProviders) }),
+      setPromptTemplates: (promptTemplates) =>
+        set({ promptTemplates: normalizePromptTemplates(promptTemplates) }),
       setGrsaiNanoBananaProModel: (model) =>
         set({
           grsaiNanoBananaProModel: normalizeGrsaiNanoBananaProModel(model),
@@ -272,7 +281,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'settings-storage',
-      version: 11,
+      version: 12,
       onRehydrateStorage: () => {
         return (state, error) => {
           if (error) {
@@ -286,6 +295,7 @@ export const useSettingsStore = create<SettingsState>()(
           apiKey?: string;
           apiKeys?: ProviderApiKeys;
           customProviders?: CustomProviderConfig[];
+          promptTemplates?: PromptTemplateConfig[];
           ignoreAtTagWhenCopyingAndGenerating?: boolean;
           grsaiNanoBananaProModel?: string;
           hideProviderGuidePopover?: boolean;
@@ -304,6 +314,7 @@ export const useSettingsStore = create<SettingsState>()(
 
         const migratedApiKeys = normalizeApiKeys(state.apiKeys);
         const migratedCustomProviders = normalizeCustomProviders(state.customProviders);
+        const migratedPromptTemplates = normalizePromptTemplates(state.promptTemplates);
         const ignoreAtTagWhenCopyingAndGenerating =
           state.ignoreAtTagWhenCopyingAndGenerating ?? true;
         if (Object.keys(migratedApiKeys).length > 0) {
@@ -312,6 +323,7 @@ export const useSettingsStore = create<SettingsState>()(
             isHydrated: true,
             apiKeys: migratedApiKeys,
             customProviders: migratedCustomProviders,
+            promptTemplates: migratedPromptTemplates,
             ignoreAtTagWhenCopyingAndGenerating,
             grsaiNanoBananaProModel: normalizeGrsaiNanoBananaProModel(
               state.grsaiNanoBananaProModel
@@ -340,6 +352,7 @@ export const useSettingsStore = create<SettingsState>()(
           isHydrated: true,
           apiKeys: state.apiKey ? { ppio: normalizeApiKey(state.apiKey) } : {},
           customProviders: migratedCustomProviders,
+          promptTemplates: migratedPromptTemplates,
           ignoreAtTagWhenCopyingAndGenerating,
           grsaiNanoBananaProModel: normalizeGrsaiNanoBananaProModel(
             state.grsaiNanoBananaProModel

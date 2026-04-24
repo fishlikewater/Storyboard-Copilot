@@ -48,6 +48,7 @@ import {
 } from '@/features/canvas/application/referenceTokenEditing';
 import { resolveGenerationContext } from '@/features/canvas/application/runtimeGenerationContext';
 import { buildNodeGeneratePayload } from '@/features/canvas/application/buildNodeGeneratePayload';
+import { appendPromptTemplateContent } from '@/features/canvas/application/promptTemplateText';
 import {
   DEFAULT_IMAGE_MODEL_ID,
   getRuntimeImageModel,
@@ -250,6 +251,7 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
   const addEdge = useCanvasStore((state) => state.addEdge);
   const apiKeys = useSettingsStore((state) => state.apiKeys);
   const customProviders = useSettingsStore((state) => state.customProviders);
+  const promptTemplates = useSettingsStore((state) => state.promptTemplates);
   const grsaiNanoBananaProModel = useSettingsStore((state) => state.grsaiNanoBananaProModel);
   const showNodePrice = useSettingsStore((state) => state.showNodePrice);
   const priceDisplayCurrencyMode = useSettingsStore((state) => state.priceDisplayCurrencyMode);
@@ -260,6 +262,13 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
   const incomingImages = useMemo(
     () => graphImageResolver.collectInputImages(id, nodes, edges),
     [id, nodes, edges]
+  );
+  const visiblePromptTemplates = useMemo(
+    () =>
+      promptTemplates.filter(
+        (template) => template.title.trim().length > 0 && template.content.trim().length > 0
+      ),
+    [promptTemplates]
   );
 
   const incomingImageItems = useMemo(
@@ -620,14 +629,31 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
     updateNodeData,
   ]);
 
-  const syncPromptHighlightScroll = () => {
+  const syncPromptHighlightScroll = useCallback(() => {
     if (!promptRef.current || !promptHighlightRef.current) {
       return;
     }
 
     promptHighlightRef.current.scrollTop = promptRef.current.scrollTop;
     promptHighlightRef.current.scrollLeft = promptRef.current.scrollLeft;
-  };
+  }, []);
+
+  const handleApplyPromptTemplate = useCallback((templateContent: string) => {
+    const nextPrompt = appendPromptTemplateContent(promptDraftRef.current, templateContent);
+    if (nextPrompt === promptDraftRef.current) {
+      return;
+    }
+
+    setPromptDraft(nextPrompt);
+    commitPromptDraft(nextPrompt);
+
+    requestAnimationFrame(() => {
+      const cursor = nextPrompt.length;
+      promptRef.current?.focus();
+      promptRef.current?.setSelectionRange(cursor, cursor);
+      syncPromptHighlightScroll();
+    });
+  }, [commitPromptDraft, syncPromptHighlightScroll]);
 
   const insertImageReference = useCallback((imageIndex: number) => {
     const marker = `@图${imageIndex + 1}`;
@@ -646,7 +672,7 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
       promptRef.current?.setSelectionRange(nextCursor, nextCursor);
       syncPromptHighlightScroll();
     });
-  }, [commitPromptDraft, pickerCursor]);
+  }, [commitPromptDraft, pickerCursor, syncPromptHighlightScroll]);
 
   const handlePromptKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Backspace' || event.key === 'Delete') {
@@ -748,6 +774,33 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
         editable
         onTitleChange={(nextTitle) => updateNodeData(id, { displayName: nextTitle })}
       />
+
+      {visiblePromptTemplates.length > 0 && (
+        <div
+          data-testid="image-edit-node-prompt-templates"
+          className="mb-2 rounded-lg border border-[rgba(255,255,255,0.12)] bg-bg-dark/40 p-1"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div className="ui-scrollbar max-h-[3.25rem] overflow-y-auto">
+            <div className="flex flex-wrap gap-1">
+              {visiblePromptTemplates.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  title={template.title}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleApplyPromptTemplate(template.content);
+                  }}
+                  className="inline-flex max-w-full items-center rounded-md border border-[rgba(255,255,255,0.18)] bg-surface-dark/60 px-2 py-0.5 text-xs leading-5 text-text-dark transition-colors hover:border-[rgba(255,255,255,0.3)] hover:bg-surface-dark"
+                >
+                  <span className="truncate">{template.title}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="relative min-h-0 flex-1 rounded-lg border border-[rgba(255,255,255,0.1)] bg-bg-dark/45 p-2">
         <div className="relative h-full min-h-0">

@@ -20,6 +20,7 @@
   },
   "titleBar": {
     "back": "返回",
+    "promptManagement": "提示词",
     "switchToEnglish": "English",
     "switchToChinese": "中文",
     "minimize": "最小化",
@@ -310,6 +311,26 @@
     "checkUpdateHasUpdate": "检测到新版本。",
     "checkUpdateUpToDate": "当前已是最新版本。",
     "checkUpdateFailed": "检查更新失败，请稍后重试。"
+  },
+  "promptTemplates": {
+    "title": "提示词管理",
+    "description": "管理可复用的 AI 图片提示词模板。",
+    "add": "添加提示词",
+    "empty": "还没有提示词模板，点击右上角开始创建。",
+    "createTitle": "添加提示词",
+    "editTitle": "编辑提示词",
+    "deleteTitle": "删除提示词",
+    "deleteDescription": "确认删除“{{title}}”吗？删除后无法恢复。",
+    "titleRequired": "请输入标题",
+    "contentRequired": "请输入提示词内容",
+    "duplicateTitle": "标题已存在，请更换名称。",
+    "editor": {
+      "titleLabel": "标题",
+      "titlePlaceholder": "例如：写实人像",
+      "contentLabel": "提示词内容",
+      "contentPlaceholder": "输入点击快捷标题后要写入节点的提示词内容"
+    },
+    "shortcutRegion": "快捷提示词"
   },
   "pricing": {
     "nativePrice": "原币种：{{value}}",

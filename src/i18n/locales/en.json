@@ -20,6 +20,7 @@
   },
   "titleBar": {
     "back": "Back",
+    "promptManagement": "Prompts",
     "switchToEnglish": "English",
     "switchToChinese": "中文",
     "minimize": "Minimize",
@@ -310,6 +311,26 @@
     "checkUpdateHasUpdate": "New version detected.",
     "checkUpdateUpToDate": "You are on the latest version.",
     "checkUpdateFailed": "Update check failed. Please try again later."
+  },
+  "promptTemplates": {
+    "title": "Prompt Templates",
+    "description": "Manage reusable prompt templates for AI image nodes.",
+    "add": "Add Prompt",
+    "empty": "No prompt templates yet. Create one from the top right button.",
+    "createTitle": "Add Prompt",
+    "editTitle": "Edit Prompt",
+    "deleteTitle": "Delete Prompt",
+    "deleteDescription": "Delete \"{{title}}\"? This action cannot be undone.",
+    "titleRequired": "Please enter a title.",
+    "contentRequired": "Please enter prompt content.",
+    "duplicateTitle": "The title already exists.",
+    "editor": {
+      "titleLabel": "Title",
+      "titlePlaceholder": "Example: Realistic Portrait",
+      "contentLabel": "Prompt Content",
+      "contentPlaceholder": "Enter the prompt text to inject into the node"
+    },
+    "shortcutRegion": "Prompt shortcuts"
   },
   "pricing": {
     "nativePrice": "Native: {{value}}",

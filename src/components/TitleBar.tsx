@@ -1,8 +1,7 @@
 import { useCallback } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { Minus, X, Maximize2, Settings, ArrowLeft } from 'lucide-react';
+import { BookText, Minus, X, Maximize2, Settings, ArrowLeft, Moon, Sun, Languages } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Moon, Sun, Languages } from 'lucide-react';
 import { useThemeStore } from '@/stores/themeStore';
 import { useProjectStore } from '@/stores/projectStore';
 import closeNormalIcon from '@/assets/macos-traffic-lights/1-close-1-normal.svg';
@@ -14,11 +13,17 @@ import maximizeHoverIcon from '@/assets/macos-traffic-lights/3-maximize-2-hover.
 
 interface TitleBarProps {
   onSettingsClick: () => void;
+  onPromptManagementClick: () => void;
   showBackButton?: boolean;
   onBackClick?: () => void;
 }
 
-export function TitleBar({ onSettingsClick, showBackButton, onBackClick }: TitleBarProps) {
+export function TitleBar({
+  onSettingsClick,
+  onPromptManagementClick,
+  showBackButton,
+  onBackClick,
+}: TitleBarProps) {
   const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useThemeStore();
   const currentProjectName = useProjectStore((state) => state.currentProject?.name);
@@ -155,6 +160,15 @@ export function TitleBar({ onSettingsClick, showBackButton, onBackClick }: Title
           ) : (
             <Moon className="w-4 h-4 text-text-muted" />
           )}
+        </button>
+
+        <button
+          type="button"
+          onClick={onPromptManagementClick}
+          className="h-full px-3 hover:bg-bg-dark transition-colors"
+          title={t('titleBar.promptManagement')}
+        >
+          <BookText className="w-4 h-4 text-text-muted" />
         </button>
 
         <button
