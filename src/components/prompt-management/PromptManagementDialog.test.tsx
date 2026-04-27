@@ -36,6 +36,42 @@ describe('PromptManagementDialog', () => {
     expect(screen.getByRole('button', { name: 'promptTemplates.add' })).toBeInTheDocument();
   });
 
+  it('uses settings-like dialog dimensions with an internal scroll area', () => {
+    useSettingsStore.setState({
+      promptTemplates: Array.from({ length: 8 }, (_, index) => ({
+        id: `prompt-${index}`,
+        title: `template-${index}`,
+        content: `content-${index}`,
+      })),
+    });
+
+    render(<PromptManagementDialog isOpen onClose={vi.fn()} />);
+
+    const dialogPanel = Array.from(document.querySelectorAll('div')).find((element) => {
+      const className = typeof element.className === 'string' ? element.className : '';
+      return className.includes('w-[700px]') && className.includes('h-[500px]');
+    });
+
+    expect(dialogPanel).toBeTruthy();
+    expect(screen.getByTestId('prompt-management-scroll-area')).toHaveClass('overflow-y-auto');
+  });
+
+  it('uses accent-driven styles for primary actions and empty state', async () => {
+    const user = userEvent.setup();
+
+    render(<PromptManagementDialog isOpen onClose={vi.fn()} />);
+
+    const addButton = screen.getByRole('button', { name: 'promptTemplates.add' });
+    expect(addButton.className).toContain('bg-accent');
+
+    const emptyState = screen.getByText('promptTemplates.empty').closest('div');
+    expect(emptyState?.className).toContain('border-accent/20');
+
+    await user.click(addButton);
+
+    expect(screen.getByRole('button', { name: 'common.save' }).className).toContain('bg-accent');
+  });
+
   it('adds a new template and refreshes the list immediately', async () => {
     const user = userEvent.setup();
 

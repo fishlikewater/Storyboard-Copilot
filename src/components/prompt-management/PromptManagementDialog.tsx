@@ -66,59 +66,68 @@ export function PromptManagementDialog({ isOpen, onClose }: PromptManagementDial
         isOpen={isOpen}
         onClose={onClose}
         title={t('promptTemplates.title')}
-        widthClassName="w-[min(92vw,860px)]"
+        widthClassName="h-[500px] w-[700px] max-w-[96vw]"
+        bodyClassName="min-h-0"
         footer={(
           <UiButton type="button" variant="ghost" onClick={onClose}>
             {t('common.close')}
           </UiButton>
         )}
       >
-        <div className="space-y-4">
+        <div className="flex h-full min-h-0 flex-col gap-4">
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm text-text-muted">{t('promptTemplates.description')}</p>
-            <UiButton type="button" size="sm" onClick={handleCreate}>
+            <UiButton type="button" size="sm" variant="primary" onClick={handleCreate}>
               {t('promptTemplates.add')}
             </UiButton>
           </div>
 
-          {promptTemplates.length === 0 ? (
-            <UiPanel className="rounded-xl border-dashed p-8 text-center text-sm text-text-muted">
-              {t('promptTemplates.empty')}
-            </UiPanel>
-          ) : (
-            <div className="space-y-3">
-              {promptTemplates.map((template) => (
-                <UiPanel key={template.id} className="rounded-xl p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium text-text-dark">{template.title}</div>
-                      <div className="mt-2 text-sm text-text-muted">
-                        {summarizePromptContent(template.content)}
+          <div
+            data-testid="prompt-management-scroll-area"
+            className="ui-scrollbar min-h-0 flex-1 overflow-y-auto pr-1"
+          >
+            {promptTemplates.length === 0 ? (
+              <UiPanel className="rounded-xl border-accent/20 border-dashed bg-accent/5 p-8 text-center text-sm text-text-muted">
+                {t('promptTemplates.empty')}
+              </UiPanel>
+            ) : (
+              <div className="space-y-3">
+                {promptTemplates.map((template) => (
+                  <UiPanel
+                    key={template.id}
+                    className="rounded-xl bg-bg-dark p-4 transition-colors hover:border-accent/25"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium text-text-dark">{template.title}</div>
+                        <div className="mt-2 text-sm text-text-muted">
+                          {summarizePromptContent(template.content)}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <UiButton
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleEdit(template)}
+                        >
+                          {t('common.edit')}
+                        </UiButton>
+                        <UiButton
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setDeletingTemplate(template)}
+                        >
+                          {t('common.delete')}
+                        </UiButton>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <UiButton
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleEdit(template)}
-                      >
-                        {t('common.edit')}
-                      </UiButton>
-                      <UiButton
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setDeletingTemplate(template)}
-                      >
-                        {t('common.delete')}
-                      </UiButton>
-                    </div>
-                  </div>
-                </UiPanel>
-              ))}
-            </div>
-          )}
+                  </UiPanel>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </UiModal>
 

@@ -62,6 +62,7 @@ interface UiModalProps {
   footer?: ReactNode;
   widthClassName?: string;
   containerClassName?: string;
+  bodyClassName?: string;
 }
 
 function resolveButtonVariant(variant: ButtonVariant): string {
@@ -466,6 +467,7 @@ export function UiModal({
   footer,
   widthClassName = 'w-[460px]',
   containerClassName = '',
+  bodyClassName = '',
 }: UiModalProps) {
   const { shouldRender, isVisible } = useDialogTransition(isOpen, UI_DIALOG_TRANSITION_MS);
 
@@ -480,7 +482,7 @@ export function UiModal({
         onClick={onClose}
       />
       <UiPanel
-        className={`relative transition-opacity duration-200 ${isVisible ? 'opacity-100' : 'opacity-0'} ${widthClassName}`}
+        className={`relative flex flex-col transition-opacity duration-200 ${isVisible ? 'opacity-100' : 'opacity-0'} ${widthClassName}`}
       >
         <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.1)] px-4 py-3">
           <h2 className="text-sm font-medium text-text-dark">{title}</h2>
@@ -489,7 +491,7 @@ export function UiModal({
           </UiIconButton>
         </div>
 
-        <div className="px-4 py-4">{children}</div>
+        <div className={`min-h-0 flex-1 px-4 py-4 ${bodyClassName}`}>{children}</div>
 
         {footer && (
           <div className="flex justify-end gap-2 border-t border-[rgba(255,255,255,0.1)] px-4 py-3">

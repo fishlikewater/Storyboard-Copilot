@@ -29,7 +29,7 @@ export function DeletePromptTemplateDialog({
           <UiButton type="button" variant="ghost" onClick={onClose}>
             {t('common.cancel')}
           </UiButton>
-          <UiButton type="button" onClick={onConfirm}>
+          <UiButton type="button" variant="primary" onClick={onConfirm}>
             {t('common.confirm')}
           </UiButton>
         </>

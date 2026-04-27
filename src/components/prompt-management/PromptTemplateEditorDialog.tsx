@@ -84,7 +84,7 @@ export function PromptTemplateEditorDialog({
           <UiButton type="button" variant="ghost" onClick={onClose}>
             {t('common.cancel')}
           </UiButton>
-          <UiButton type="button" onClick={handleSave}>
+          <UiButton type="button" variant="primary" onClick={handleSave}>
             {t('common.save')}
           </UiButton>
         </>
