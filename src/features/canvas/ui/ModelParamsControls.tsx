@@ -196,7 +196,7 @@ export const ModelParamsControls = memo(({
 
   const selectedProvider = useMemo(
     () =>
-      selectedModel.runtimeProvider.kind === 'custom-openapi'
+      selectedModel.runtimeProvider.kind === 'custom-provider'
         ? {
           id: selectedModel.providerId,
           name: selectedModel.runtimeProvider.providerDisplayName ?? selectedModel.displayName,
@@ -218,13 +218,20 @@ export const ModelParamsControls = memo(({
     );
     return uniqueProviders
       .map((model) => {
-        if (model.runtimeProvider.kind === 'custom-openapi') {
+        if (model.runtimeProvider.kind === 'custom-provider') {
+          const isConfigured =
+            model.runtimeProvider.protocol === 'xais-task'
+              ? Boolean(model.runtimeProvider.submitBaseUrl?.trim()) &&
+                Boolean(model.runtimeProvider.waitBaseUrl?.trim()) &&
+                Boolean(model.runtimeProvider.assetBaseUrl?.trim()) &&
+                Boolean(model.runtimeProvider.apiKey?.trim())
+              : Boolean(model.runtimeProvider.baseUrl?.trim()) &&
+                Boolean(model.runtimeProvider.apiKey?.trim());
+
           return {
             id: model.providerId,
             label: model.runtimeProvider.providerDisplayName ?? model.displayName,
-            configured:
-              Boolean(model.runtimeProvider.baseUrl?.trim()) &&
-              Boolean(model.runtimeProvider.apiKey?.trim()),
+            configured: isConfigured,
             settingsCategory: 'suppliers' as const,
           };
         }

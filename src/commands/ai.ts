@@ -64,12 +64,16 @@ function sanitizeGenerateRequestForLog(request: GenerateRequest): Record<string,
     extra_params: request.extra_params ?? {},
     provider_runtime: request.provider_runtime
       ? {
-        kind: request.provider_runtime.kind,
-        providerProfileId: request.provider_runtime.providerProfileId,
-        protocol: request.provider_runtime.protocol,
-        baseUrl: request.provider_runtime.baseUrl,
-        remoteModelId: request.provider_runtime.remoteModelId,
-      }
+          kind: request.provider_runtime.kind,
+          providerProfileId: request.provider_runtime.providerProfileId,
+          protocol: request.provider_runtime.protocol,
+          baseUrl: request.provider_runtime.baseUrl,
+          submitBaseUrl: request.provider_runtime.submitBaseUrl,
+          waitBaseUrl: request.provider_runtime.waitBaseUrl,
+          assetBaseUrl: request.provider_runtime.assetBaseUrl,
+          defaultOutputFormat: request.provider_runtime.defaultOutputFormat,
+          remoteModelId: request.provider_runtime.remoteModelId,
+        }
       : undefined,
   };
 }

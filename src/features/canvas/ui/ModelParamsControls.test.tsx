@@ -79,12 +79,12 @@ describe('ModelParamsControls', () => {
 
     const builtInModel = createRuntimeModel({});
     const customModel = createRuntimeModel({
-      id: 'custom-openapi:gateway-a:model-main',
+      id: 'custom-provider:gateway-a:model-main',
       displayName: 'Nano Banana Pro 2K',
       providerId: 'custom-provider:gateway-a',
       description: 'custom',
       runtimeProvider: {
-        kind: 'custom-openapi',
+        kind: 'custom-provider',
         providerProfileId: 'gateway-a',
         providerDisplayName: 'Acme Gateway',
         protocol: 'openapi',
@@ -116,19 +116,19 @@ describe('ModelParamsControls', () => {
       await user.click(screen.getByRole('button', { name: 'Acme Gateway' }));
     });
 
-    expect(onModelChange).toHaveBeenCalledWith('custom-openapi:gateway-a:model-main');
+    expect(onModelChange).toHaveBeenCalledWith('custom-provider:gateway-a:model-main');
   });
 
   it('hides quality controls for custom openapi models', async () => {
     const user = userEvent.setup();
 
     const customModel = createRuntimeModel({
-      id: 'custom-openapi:gateway-a:model-main',
+      id: 'custom-provider:gateway-a:model-main',
       displayName: 'Nano Banana Pro 2K',
       providerId: 'custom-provider:gateway-a',
       description: 'custom',
       runtimeProvider: {
-        kind: 'custom-openapi',
+        kind: 'custom-provider',
         providerProfileId: 'gateway-a',
         providerDisplayName: 'Acme Gateway',
         protocol: 'openapi',
@@ -200,12 +200,12 @@ describe('ModelParamsControls', () => {
   it('opens suppliers settings for missing custom provider credentials', async () => {
     const user = userEvent.setup();
     const customModel = createRuntimeModel({
-      id: 'custom-openapi:gateway-a:model-main',
+      id: 'custom-provider:gateway-a:model-main',
       displayName: 'Nano Banana Pro 2K',
       providerId: 'custom-provider:gateway-a',
       description: 'custom',
       runtimeProvider: {
-        kind: 'custom-openapi',
+        kind: 'custom-provider',
         providerProfileId: 'gateway-a',
         providerDisplayName: 'Acme Gateway',
         protocol: 'openapi',

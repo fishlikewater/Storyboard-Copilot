@@ -16,6 +16,10 @@ pub struct RuntimeProviderConfig {
     pub protocol: Option<String>,
     pub base_url: Option<String>,
     pub api_key: Option<String>,
+    pub submit_base_url: Option<String>,
+    pub wait_base_url: Option<String>,
+    pub asset_base_url: Option<String>,
+    pub default_output_format: Option<String>,
     pub remote_model_id: Option<String>,
 }
 

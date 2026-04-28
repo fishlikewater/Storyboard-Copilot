@@ -19,6 +19,26 @@ function hasFieldError(errors: string[], fieldPath: string): boolean {
   return errors.includes(fieldPath);
 }
 
+function syncOpenApiConnection(
+  provider: CustomProviderConfig,
+  patch: Partial<Pick<CustomProviderConfig, 'baseUrl' | 'apiKey'>>
+): CustomProviderConfig {
+  const nextBaseUrl = patch.baseUrl ?? provider.baseUrl;
+  const nextApiKey = patch.apiKey ?? provider.apiKey;
+
+  return {
+    ...provider,
+    ...patch,
+    connection: {
+      ...provider.connection,
+      openapi: {
+        baseUrl: nextBaseUrl,
+        apiKey: nextApiKey,
+      },
+    },
+  };
+}
+
 export function CustomProviderSection({
   providers,
   onChange,
@@ -153,10 +173,11 @@ export function CustomProviderSection({
               <UiInput
                 value={provider.baseUrl}
                 onChange={(event) =>
-                  updateProvider(provider.id, (current) => ({
-                    ...current,
-                    baseUrl: event.target.value,
-                  }))
+                  updateProvider(provider.id, (current) =>
+                    syncOpenApiConnection(current, {
+                      baseUrl: event.target.value,
+                    })
+                  )
                 }
                 placeholder={t('settings.customProviderBaseUrlPlaceholder')}
                 className={providerBaseUrlError ? 'border-red-400/60' : ''}
@@ -172,10 +193,11 @@ export function CustomProviderSection({
                   type={isApiKeyRevealed ? 'text' : 'password'}
                   value={provider.apiKey}
                   onChange={(event) =>
-                    updateProvider(provider.id, (current) => ({
-                      ...current,
-                      apiKey: event.target.value,
-                    }))
+                    updateProvider(provider.id, (current) =>
+                      syncOpenApiConnection(current, {
+                        apiKey: event.target.value,
+                      })
+                    )
                   }
                   placeholder={t('settings.enterApiKey')}
                   className={`pr-10 ${providerApiKeyError ? 'border-red-400/60' : ''}`}

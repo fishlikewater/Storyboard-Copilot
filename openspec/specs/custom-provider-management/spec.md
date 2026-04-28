@@ -2,6 +2,7 @@
 
 ## Purpose
 TBD - created by archiving change separate-provider-management-page. Update Purpose after archive.
+
 ## Requirements
 ### Requirement: 设置页必须提供独立的供应商管理入口
 系统必须在设置页左侧提供独立菜单项“供应商”，并将其用于管理自定义供应商。该入口必须与内置供应商 API Key 配置入口分离，避免两者混用同一页面。
@@ -9,7 +10,7 @@ TBD - created by archiving change separate-provider-management-page. Update Purp
 #### Scenario: 用户打开设置页
 - **WHEN** 用户打开设置页并查看左侧菜单
 - **THEN** 系统必须显示名为“供应商”的菜单项
-- **THEN** 该菜单项打开的页面必须用于管理自定义供应商，而不是展示内置 API Key 长表单
+- **THEN** 该菜单项打开的页面必须用于管理自定义供应商，而不是展示内置供应商 API Key 长表单
 
 #### Scenario: 生图流程要求配置自定义供应商
 - **WHEN** 用户在生图流程中遇到某个自定义供应商缺少必要配置
@@ -32,13 +33,23 @@ TBD - created by archiving change separate-provider-management-page. Update Purp
 - **THEN** 顶部“添加供应商”按钮仍必须可见并可点击
 
 ### Requirement: 系统必须支持通过弹窗新增供应商
-系统必须在用户点击“添加供应商”后弹出新增供应商窗口。该窗口必须允许用户填写当前自定义供应商所需属性，并在点击底部“保存”按钮后保存该供应商配置。
+系统必须在用户点击“添加供应商”后弹出新增供应商窗口。该窗口必须允许用户填写当前自定义供应商所需属性，并在点击底部“保存”按钮后保存该供应商配置。窗口中的连接字段必须根据所选“接入协议”动态切换。
 
 #### Scenario: 用户打开新增供应商窗口
 - **WHEN** 用户点击供应商页面顶部的“添加供应商”按钮
 - **THEN** 系统必须弹出新增供应商窗口
-- **THEN** 窗口中必须包含供应商名称、协议、Base URL、密钥、模型列表、模型显示名称、模型 ID、模型启用状态等字段
+- **THEN** 窗口中必须包含供应商名称、协议、连接字段、模型列表、模型显示名称、模型 ID、模型启用状态等字段
 - **THEN** 窗口底部必须显示“保存”按钮
+
+#### Scenario: 用户以 openapi 协议新增供应商
+- **WHEN** 用户点击“添加供应商”按钮并在弹窗中选择 `openapi` 作为接入协议
+- **THEN** 系统必须展示 `baseUrl` 与 `apiKey` 字段
+- **AND** 系统必须允许用户配置一个或多个模型条目并保存
+
+#### Scenario: 用户以 xais-task 协议新增供应商
+- **WHEN** 用户点击“添加供应商”按钮并在弹窗中选择 `xais-task` 作为接入协议
+- **THEN** 系统必须展示 `submitBaseUrl`、`waitBaseUrl`、`assetBaseUrl` 与 `apiKey` 字段
+- **AND** 系统必须允许用户配置默认输出格式与一个或多个模型条目并保存
 
 #### Scenario: 用户保存新增供应商
 - **WHEN** 用户在新增供应商窗口填写合法信息并点击“保存”
@@ -48,7 +59,7 @@ TBD - created by archiving change separate-provider-management-page. Update Purp
 - **THEN** 系统不得要求用户再点击设置页底部保存按钮
 
 ### Requirement: 系统必须支持通过弹窗编辑供应商
-系统必须允许用户通过列表中的“编辑”按钮打开编辑窗口，并使用与新增窗口一致的表单结构编辑已存在的供应商。
+系统必须允许用户通过列表中的“编辑”按钮打开编辑窗口，并使用与新增窗口一致的表单结构编辑已存在的供应商。编辑弹窗必须维持固定尺寸壳体，并让模型列表在弹窗内部滚动，而不是撑开整个窗口。
 
 #### Scenario: 用户打开编辑窗口
 - **WHEN** 用户点击某个供应商列表项上的“编辑”按钮
@@ -56,11 +67,35 @@ TBD - created by archiving change separate-provider-management-page. Update Purp
 - **THEN** 窗口中的字段必须预填当前供应商已保存的数据
 - **THEN** 窗口结构必须与新增供应商窗口保持一致
 
+#### Scenario: 编辑包含多个模型的供应商
+- **WHEN** 用户打开一个包含多个模型条目的供应商编辑窗口
+- **THEN** 系统必须保持弹窗整体尺寸稳定
+- **AND** 模型列表内容超出可见高度时，系统必须在模型列表区域显示内部滚动
+- **AND** 底部“保存”“取消”按钮必须始终可见
+
+#### Scenario: 用户切换编辑中的接入协议
+- **WHEN** 用户在供应商编辑弹窗中切换接入协议
+- **THEN** 系统必须立即切换当前弹窗中的连接字段区
+- **AND** 系统不得显示与当前协议无关的连接字段
+
 #### Scenario: 用户保存编辑结果
 - **WHEN** 用户修改供应商信息并点击编辑窗口底部“保存”
 - **THEN** 系统必须更新该供应商配置
 - **THEN** 供应商列表中对应行的名称和模型摘要必须同步更新
 - **THEN** 系统不得要求用户再点击设置页底部保存按钮
+
+### Requirement: 供应商编辑器必须按接入协议校验连接字段
+系统必须根据当前供应商选择的接入协议执行不同的连接字段校验，并阻止用户保存缺少必填连接字段的供应商。
+
+#### Scenario: openapi 供应商缺少必填连接字段
+- **WHEN** 用户选择 `openapi` 协议且缺少 `baseUrl` 或 `apiKey` 后点击保存
+- **THEN** 系统必须拒绝保存
+- **AND** 系统必须保留当前弹窗内容供用户修正
+
+#### Scenario: xais-task 供应商缺少必填连接字段
+- **WHEN** 用户选择 `xais-task` 协议且缺少 `submitBaseUrl`、`waitBaseUrl`、`assetBaseUrl` 或 `apiKey` 后点击保存
+- **THEN** 系统必须拒绝保存
+- **AND** 系统必须保留当前弹窗内容供用户修正
 
 ### Requirement: 系统必须在删除供应商前进行二次确认
 系统必须允许用户通过供应商列表中的“删除”按钮发起删除流程，但在真正删除前必须弹出二次确认窗口。只有在用户明确确认后，系统才能移除该供应商。

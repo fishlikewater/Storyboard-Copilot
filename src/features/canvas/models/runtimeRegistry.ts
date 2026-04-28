@@ -10,6 +10,9 @@ import type {
 } from './types';
 import {
   buildCustomProviderModelId,
+  isCustomProviderConfigured,
+  resolveOpenApiConnection,
+  resolveXaisTaskConnection,
   type CustomProviderConfig,
 } from '@/stores/customProviderConfig';
 
@@ -44,8 +47,8 @@ export function listRuntimeModelProviders(
     id: buildCustomRuntimeProviderId(provider.id),
     name: provider.name,
     label: provider.name,
-    runtimeKind: 'custom-openapi' as const,
-    configured: provider.apiKey.trim().length > 0,
+    runtimeKind: 'custom-provider' as const,
+    configured: isCustomProviderConfigured(provider),
     providerProfileId: provider.id,
     protocol: provider.protocol,
   }));
@@ -65,8 +68,11 @@ export function listRuntimeImageModels(
   }));
 
   const baseModel = getImageModel(DEFAULT_IMAGE_MODEL_ID);
-  const customs = customProviders.flatMap((provider) =>
-    provider.models
+  const customs = customProviders.flatMap((provider) => {
+    const openapiConnection = resolveOpenApiConnection(provider);
+    const xaisTaskConnection = resolveXaisTaskConnection(provider);
+
+    return provider.models
       .filter((model) => model.enabled)
       .map<RuntimeImageModelDefinition>((model) => ({
         ...baseModel,
@@ -80,17 +86,24 @@ export function listRuntimeImageModels(
           modeLabel: referenceImageCount > 0 ? '编辑模式' : '生成模式',
         }),
         runtimeProvider: {
-          kind: 'custom-openapi',
+          kind: 'custom-provider',
           providerProfileId: provider.id,
           providerDisplayName: provider.name,
           protocol: provider.protocol,
-          baseUrl: provider.baseUrl,
-          apiKey: provider.apiKey,
+          baseUrl: openapiConnection.baseUrl,
+          apiKey:
+            provider.protocol === 'xais-task'
+              ? xaisTaskConnection.apiKey
+              : openapiConnection.apiKey,
+          submitBaseUrl: xaisTaskConnection.submitBaseUrl,
+          waitBaseUrl: xaisTaskConnection.waitBaseUrl,
+          assetBaseUrl: xaisTaskConnection.assetBaseUrl,
+          defaultOutputFormat: xaisTaskConnection.defaultOutputFormat,
           remoteModelId: model.remoteModelId,
         },
         supportsResolutionSelection: false,
-      }))
-  );
+      }));
+  });
 
   return [...builtins, ...customs];
 }

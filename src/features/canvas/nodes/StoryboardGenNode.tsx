@@ -37,6 +37,10 @@ import {
   resolveImageDisplayUrl,
 } from '@/features/canvas/application/imageData';
 import {
+  resolveStoryboardAspectRatios,
+  resolveStoryboardRatioControlMode,
+} from '@/features/canvas/application/storyboardAspectRatio';
+import {
   buildGenerationErrorReport,
   CURRENT_RUNTIME_SESSION_ID,
   createReferenceImagePlaceholders,
@@ -134,19 +138,6 @@ const FRAME_CELL_MIN_HEIGHT_PX = 16;
 const GRID_LINE_THICKNESS_PERCENT = 0.4;
 const RATIO_CONTROL_MODE_BUTTON_CLASS =
   'flex h-5 items-center rounded-full border px-1.5 text-[9px] transition-colors';
-const FRIENDLY_ASPECT_RATIO_CANDIDATES = [
-  '1:1',
-  '16:9',
-  '9:16',
-  '4:3',
-  '3:4',
-  '21:9',
-  '9:21',
-  '3:2',
-  '2:3',
-  '5:4',
-  '4:5',
-];
 
 function getTextareaCaretOffset(
   textarea: HTMLTextAreaElement,
@@ -370,83 +361,6 @@ function pickClosestAspectRatio(
   return bestValue;
 }
 
-function ratioValueToAspectRatioString(ratioValue: number): string {
-  if (!Number.isFinite(ratioValue) || ratioValue <= 0) {
-    return DEFAULT_ASPECT_RATIO;
-  }
-
-  const scaledWidth = Math.max(1, Math.round(ratioValue * 1000));
-  const scaledHeight = 1000;
-  const gcd = (left: number, right: number): number => {
-    let a = Math.abs(left);
-    let b = Math.abs(right);
-    while (b !== 0) {
-      const temp = b;
-      b = a % b;
-      a = temp;
-    }
-    return a || 1;
-  };
-
-  const divisor = gcd(scaledWidth, scaledHeight);
-  return `${Math.round(scaledWidth / divisor)}:${Math.round(scaledHeight / divisor)}`;
-}
-
-function formatFriendlyAspectRatio(ratioValue: number): string {
-  if (!Number.isFinite(ratioValue) || ratioValue <= 0) {
-    return DEFAULT_ASPECT_RATIO;
-  }
-
-  const snapped = pickClosestAspectRatio(ratioValue, FRIENDLY_ASPECT_RATIO_CANDIDATES);
-  const snappedValue = parseAspectRatio(snapped);
-  const snapDistance = Math.abs(Math.log(snappedValue / ratioValue));
-  if (snapDistance <= Math.log(1.04)) {
-    return snapped;
-  }
-
-  if (ratioValue >= 1) {
-    return `${ratioValue.toFixed(2)}:1`;
-  }
-
-  return `1:${(1 / ratioValue).toFixed(2)}`;
-}
-
-function resolveStoryboardAspectRatios(
-  mode: StoryboardRatioControlMode,
-  controlRatioValue: number,
-  rows: number,
-  cols: number
-): {
-  cellRatioValue: number;
-  overallRatioValue: number;
-  cellAspectRatio: string;
-  overallAspectRatio: string;
-  cellAspectRatioLabel: string;
-  overallAspectRatioLabel: string;
-} {
-  const safeRows = Math.max(1, rows);
-  const safeCols = Math.max(1, cols);
-  const safeControl = Number.isFinite(controlRatioValue) && controlRatioValue > 0
-    ? controlRatioValue
-    : 1;
-
-  const cellRatioValue = mode === 'cell'
-    ? safeControl
-    : safeControl * (safeRows / safeCols);
-  const overallRatioValue = mode === 'overall'
-    ? safeControl
-    : safeControl * (safeCols / safeRows);
-
-  return {
-    cellRatioValue,
-    overallRatioValue,
-    cellAspectRatio: ratioValueToAspectRatioString(cellRatioValue),
-    overallAspectRatio: ratioValueToAspectRatioString(overallRatioValue),
-    cellAspectRatioLabel: formatFriendlyAspectRatio(cellRatioValue),
-    overallAspectRatioLabel: formatFriendlyAspectRatio(overallRatioValue),
-  };
-}
-
 function generateFrameId(): string {
   return `frame-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
@@ -659,9 +573,10 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
     return found ?? AUTO_ASPECT_RATIO_OPTION;
   }, [aspectRatioOptions, nodeData.requestAspectRatio]);
 
-  const ratioControlMode: StoryboardRatioControlMode = showStoryboardGenAdvancedRatioControls
-    ? (nodeData.ratioControlMode === 'overall' ? 'overall' : 'cell')
-    : 'cell';
+  const ratioControlMode: StoryboardRatioControlMode = resolveStoryboardRatioControlMode(
+    showStoryboardGenAdvancedRatioControls,
+    nodeData.ratioControlMode
+  );
   const controlAspectRatioValue = useMemo(() => {
     if (selectedAspectRatio.value === AUTO_REQUEST_ASPECT_RATIO) {
       return nodeData.aspectRatio || DEFAULT_ASPECT_RATIO;

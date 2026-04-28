@@ -7,6 +7,7 @@ import {
   type PriceDisplayCurrencyMode,
 } from '@/features/canvas/pricing/types';
 import {
+  isCustomProviderConfigured,
   normalizeCustomProviders,
   type CustomProviderConfig,
 } from '@/stores/customProviderConfig';
@@ -175,13 +176,7 @@ export function getConfiguredCustomProviderCount(
   customProviders: CustomProviderConfig[]
 ): number {
   return customProviders.reduce((count, provider) => {
-    const hasEnabledModel = provider.models.some((model) => model.enabled);
-    const isConfigured =
-      provider.baseUrl.trim().length > 0 &&
-      provider.apiKey.trim().length > 0 &&
-      hasEnabledModel;
-
-    return isConfigured ? count + 1 : count;
+    return isCustomProviderConfigured(provider) ? count + 1 : count;
   }, 0);
 }
 

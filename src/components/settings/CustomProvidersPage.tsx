@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { UiButton } from '@/components/ui';
@@ -20,6 +19,14 @@ function buildModelSummary(provider: CustomProviderConfig, emptyLabel: string): 
   return enabledModels.map((model) => model.displayName).join(', ');
 }
 
+function buildProtocolSummary(provider: CustomProviderConfig, t: (key: string) => string): string {
+  if (provider.protocol === 'xais-task') {
+    return t('settings.customProviderProtocolXaisTask');
+  }
+
+  return t('settings.customProviderProtocolOpenapi');
+}
+
 export function CustomProvidersPage({
   providers,
   onAdd,
@@ -27,10 +34,7 @@ export function CustomProvidersPage({
   onDelete,
 }: CustomProvidersPageProps) {
   const { t } = useTranslation();
-  const sortedProviders = useMemo(
-    () => [...providers].sort((left, right) => left.name.localeCompare(right.name)),
-    [providers]
-  );
+  const sortedProviders = [...providers].sort((left, right) => left.name.localeCompare(right.name));
 
   return (
     <>
@@ -55,10 +59,23 @@ export function CustomProvidersPage({
               key={provider.id}
               className="flex items-center justify-between gap-4 rounded-lg border border-border-dark bg-bg-dark p-4"
             >
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1 space-y-2">
                 <div className="truncate text-sm font-medium text-text-dark">{provider.name}</div>
-                <div className="mt-1 truncate text-xs text-text-muted">
-                  {buildModelSummary(provider, t('settings.customProviderNoEnabledModels'))}
+                <div className="grid gap-1 text-xs text-text-muted md:grid-cols-2">
+                  <div className="min-w-0 truncate">
+                    <span>{t('settings.customProviderProtocol')}</span>
+                    <span>:</span>{' '}
+                    <span className="font-medium text-text-dark/90">
+                      {buildProtocolSummary(provider, t)}
+                    </span>
+                  </div>
+                  <div className="min-w-0 truncate">
+                    <span>{t('settings.customProviderAvailableModels')}</span>
+                    <span>:</span>{' '}
+                    <span className="font-medium text-text-dark/90">
+                      {buildModelSummary(provider, t('settings.customProviderNoEnabledModels'))}
+                    </span>
+                  </div>
                 </div>
               </div>
 

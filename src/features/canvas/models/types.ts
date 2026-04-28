@@ -8,21 +8,27 @@ export interface ModelProviderDefinition {
   label: string;
 }
 
+export type RuntimeCustomProviderProtocol = 'openapi' | 'xais-task';
+
 export interface RuntimeProviderConfig {
-  kind: 'builtin' | 'custom-openapi';
+  kind: 'builtin' | 'custom-provider';
   providerProfileId?: string;
   providerDisplayName?: string;
-  protocol?: 'openapi';
+  protocol?: RuntimeCustomProviderProtocol;
   baseUrl?: string;
   apiKey?: string;
+  submitBaseUrl?: string;
+  waitBaseUrl?: string;
+  assetBaseUrl?: string;
+  defaultOutputFormat?: 'image/png' | 'image/jpeg';
   remoteModelId?: string;
 }
 
 export interface RuntimeModelProviderDefinition extends ModelProviderDefinition {
-  runtimeKind: 'builtin' | 'custom-openapi';
+  runtimeKind: 'builtin' | 'custom-provider';
   configured: boolean;
   providerProfileId?: string;
-  protocol?: 'openapi';
+  protocol?: RuntimeCustomProviderProtocol;
 }
 
 export interface AspectRatioOption {
