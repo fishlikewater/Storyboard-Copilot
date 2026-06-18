@@ -532,14 +532,12 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
           }
         }
 
-        const shouldUseOpenAiImageEdit = isOpenAiImageProtocol && incomingImages.length > 0;
         const jobId = await canvasAiGateway.submitGenerateImageJob(
           buildNodeGeneratePayload({
             prompt,
             requestModel: requestResolution.requestModel,
             size: selectedResolution.value,
             aspectRatio: resolvedRequestAspectRatio,
-            action: shouldUseOpenAiImageEdit ? 'edit' : undefined,
             referenceImages: incomingImages,
             extraParams: effectiveExtraParams,
             providerRuntime: generationContext.providerRuntime,
@@ -622,7 +620,172 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
     effectiveExtraParams,
     id,
     incomingImages,
-    isOpenAiImageProtocol,
+    requestResolution.requestModel,
+    selectedAspectRatio.value,
+    selectedModel.id,
+    selectedModel.expectedDurationMs,
+    selectedModel.providerId,
+    selectedResolution.value,
+    supportedAspectRatioValues,
+    t,
+    updateNodeData,
+  ]);
+
+  const handleEdit = useCallback(async () => {
+    if (isSubmittingGenerationRef.current) {
+      return;
+    }
+
+    const prompt = promptDraft.replace(/@(?=图\d+)/g, '').trim();
+    if (!prompt) {
+      const errorMessage = t('node.imageEdit.promptRequired');
+      setError(errorMessage);
+      void showErrorDialog(errorMessage, t('common.error'));
+      return;
+    }
+
+    if (!generationContext.isConfigured) {
+      const errorMessage = t('node.imageEdit.apiKeyRequired');
+      setError(errorMessage);
+      void showErrorDialog(errorMessage, t('common.error'));
+      return;
+    }
+
+    isSubmittingGenerationRef.current = true;
+    setIsSubmittingGeneration(true);
+    try {
+      const generationDurationMs = selectedModel.expectedDurationMs ?? 60000;
+      const generationStartedAt = Date.now();
+      const resultNodeTitle = buildAiResultNodeTitle(prompt, t('node.imageEdit.resultTitle'));
+      const runtimeDiagnostics = await getRuntimeDiagnostics();
+      setError(null);
+
+      const newNodePosition = findNodePosition(
+        id,
+        EXPORT_RESULT_NODE_DEFAULT_WIDTH,
+        EXPORT_RESULT_NODE_LAYOUT_HEIGHT
+      );
+      const newNodeId = addNode(
+        CANVAS_NODE_TYPES.exportImage,
+        newNodePosition,
+        {
+          isGenerating: true,
+          generationStartedAt,
+          generationDurationMs,
+          resultKind: 'generic',
+          displayName: resultNodeTitle,
+        }
+      );
+      addEdge(id, newNodeId);
+
+      try {
+        let resolvedRequestAspectRatio = selectedAspectRatio.value;
+        if (resolvedRequestAspectRatio === AUTO_REQUEST_ASPECT_RATIO) {
+          if (incomingImages.length > 0) {
+            try {
+              const sourceAspectRatio = await detectAspectRatio(incomingImages[0]);
+              const sourceAspectRatioValue = parseAspectRatio(sourceAspectRatio);
+              resolvedRequestAspectRatio = pickClosestAspectRatio(
+                sourceAspectRatioValue,
+                supportedAspectRatioValues
+              );
+            } catch {
+              resolvedRequestAspectRatio = pickClosestAspectRatio(1, supportedAspectRatioValues);
+            }
+          } else {
+            resolvedRequestAspectRatio = pickClosestAspectRatio(1, supportedAspectRatioValues);
+          }
+        }
+
+        const jobId = await canvasAiGateway.submitGenerateImageJob(
+          buildNodeGeneratePayload({
+            prompt,
+            requestModel: requestResolution.requestModel,
+            size: selectedResolution.value,
+            aspectRatio: resolvedRequestAspectRatio,
+            action: 'edit',
+            referenceImages: incomingImages,
+            extraParams: effectiveExtraParams,
+            providerRuntime: generationContext.providerRuntime,
+          })
+        );
+        const generationDebugContext: GenerationDebugContext = {
+          sourceType: 'imageEdit',
+          providerId: selectedModel.providerId,
+          requestModel: requestResolution.requestModel,
+          requestSize: selectedResolution.value,
+          requestAspectRatio: resolvedRequestAspectRatio,
+          prompt,
+          extraParams: effectiveExtraParams,
+          referenceImageCount: incomingImages.length,
+          referenceImagePlaceholders: createReferenceImagePlaceholders(incomingImages.length),
+          appVersion: runtimeDiagnostics.appVersion,
+          osName: runtimeDiagnostics.osName,
+          osVersion: runtimeDiagnostics.osVersion,
+          osBuild: runtimeDiagnostics.osBuild,
+          userAgent: runtimeDiagnostics.userAgent,
+        };
+        updateNodeData(newNodeId, {
+          generationJobId: jobId,
+          generationSourceType: 'imageEdit',
+          generationProviderId: null,
+          generationClientSessionId: CURRENT_RUNTIME_SESSION_ID,
+          generationDebugContext,
+        });
+      } catch (generationError) {
+        const resolvedError = resolveErrorContent(generationError, t('ai.error'));
+        const generationDebugContext: GenerationDebugContext = {
+          sourceType: 'imageEdit',
+          providerId: selectedModel.providerId,
+          requestModel: requestResolution.requestModel,
+          requestSize: selectedResolution.value,
+          requestAspectRatio: selectedAspectRatio.value,
+          prompt,
+          extraParams: effectiveExtraParams,
+          referenceImageCount: incomingImages.length,
+          referenceImagePlaceholders: createReferenceImagePlaceholders(incomingImages.length),
+          appVersion: runtimeDiagnostics.appVersion,
+          osName: runtimeDiagnostics.osName,
+          osVersion: runtimeDiagnostics.osVersion,
+          osBuild: runtimeDiagnostics.osBuild,
+          userAgent: runtimeDiagnostics.userAgent,
+        };
+        const reportText = buildGenerationErrorReport({
+          errorMessage: resolvedError.message,
+          errorDetails: resolvedError.details,
+          context: generationDebugContext,
+        });
+        setError(resolvedError.message);
+        void showErrorDialog(
+          resolvedError.message,
+          t('common.error'),
+          resolvedError.details,
+          reportText
+        );
+        updateNodeData(newNodeId, {
+          isGenerating: false,
+          generationStartedAt: null,
+          generationJobId: null,
+          generationProviderId: null,
+          generationClientSessionId: null,
+          generationError: resolvedError.message,
+          generationErrorDetails: resolvedError.details ?? null,
+          generationDebugContext,
+        });
+      }
+    } finally {
+      isSubmittingGenerationRef.current = false;
+      setIsSubmittingGeneration(false);
+    }
+  }, [
+    addNode,
+    addEdge,
+    generationContext,
+    findNodePosition,
+    promptDraft,
+    effectiveExtraParams,
+    id,
+    incomingImages,
     requestResolution.requestModel,
     selectedAspectRatio.value,
     selectedModel.id,
@@ -878,7 +1041,7 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
         )}
       </div>
 
-      <div className="mt-2 flex shrink-0 items-center gap-1">
+      <div className="mt-2 flex shrink-0 items-center gap-1 min-w-0">
         <ModelParamsControls
           imageModels={imageModels}
           selectedModel={selectedModel}
@@ -924,6 +1087,21 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
 
         <div className="ml-auto" />
 
+
+        {isOpenAiImageProtocol && incomingImages.length > 0 && (
+          <UiButton
+            onClick={(event) => {
+              event.stopPropagation();
+              void handleEdit();
+            }}
+            disabled={isSubmittingGeneration}
+            variant="muted"
+            className={`shrink-0 ${NODE_CONTROL_PRIMARY_BUTTON_CLASS} border-accent/60 bg-accent/10 hover:bg-accent/20`}
+          >
+            <Sparkles className={NODE_CONTROL_ICON_CLASS} strokeWidth={2.8} />
+            {isSubmittingGeneration ? t('ai.generating') : t('node.imageEdit.edit')}
+          </UiButton>
+        )}
 
         <UiButton
           onClick={(event) => {

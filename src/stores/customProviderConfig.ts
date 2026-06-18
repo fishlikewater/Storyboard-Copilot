@@ -1,4 +1,4 @@
-export type CustomProviderProtocol = 'openapi' | 'openai-image';
+export type CustomProviderProtocol = 'openapi' | 'openai-image' | 'agnes';
 
 export interface CustomProviderModelConfig {
   id: string;
@@ -55,7 +55,7 @@ function preferTrimmed(
 }
 
 function normalizeProtocol(value: string | null | undefined): CustomProviderProtocol {
-  if (value === 'openai-image') {
+  if (value === 'openai-image' || value === 'agnes') {
     return value;
   }
 
@@ -165,7 +165,7 @@ export function normalizeCustomProviders(
   return (input ?? [])
     .filter((provider) => {
       const protocol = (provider as { protocol?: string }).protocol;
-      return !protocol || protocol === 'openapi' || protocol === 'openai-image';
+      return !protocol || protocol === 'openapi' || protocol === 'openai-image' || protocol === 'agnes';
     })
     .map((provider) => {
       const protocol = normalizeProtocol(provider.protocol);

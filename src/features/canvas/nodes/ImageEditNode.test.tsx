@@ -210,7 +210,7 @@ describe('ImageEditNode openai-image edit action', () => {
     });
   });
 
-  it('does not render a separate edit button for openai-image models', () => {
+  it('does not render an edit button when there are no incoming images', () => {
     renderNode({
       model: 'custom-provider:openai-images:gpt-image',
     });
@@ -218,7 +218,20 @@ describe('ImageEditNode openai-image edit action', () => {
     expect(screen.queryByRole('button', { name: 'node.imageEdit.edit' })).not.toBeInTheDocument();
   });
 
-  it('uses edit action when generating with openai-image references', async () => {
+  it('renders a separate edit button when openai-image has incoming images', () => {
+    vi.mocked(graphImageResolver.collectInputImages).mockReturnValue([
+      'source-image-path-or-url',
+    ]);
+
+    renderNode({
+      model: 'custom-provider:openai-images:gpt-image',
+      prompt: '@图1 turn it into watercolor',
+    });
+
+    expect(screen.getByRole('button', { name: 'node.imageEdit.edit' })).toBeInTheDocument();
+  });
+
+  it('generate button always calls generate action even with incoming images', async () => {
     const user = userEvent.setup();
     vi.mocked(graphImageResolver.collectInputImages).mockReturnValue([
       'source-image-path-or-url',
@@ -232,30 +245,30 @@ describe('ImageEditNode openai-image edit action', () => {
     await user.click(screen.getByRole('button', { name: 'canvas.generate' }));
 
     await waitFor(() => {
-      expect(buildNodeGeneratePayload).toHaveBeenCalledWith(
-        expect.objectContaining({
-          action: 'edit',
-          referenceImages: ['source-image-path-or-url'],
-        })
-      );
+      const callArgs = vi.mocked(buildNodeGeneratePayload).mock.calls[0][0];
+      expect(callArgs.referenceImages).toEqual(['source-image-path-or-url']);
+      expect(callArgs).not.toHaveProperty('action');
     });
   });
 
-  it('uses normal generation for openai-image models without references', async () => {
+  it('edit button calls edit action with openai-image references', async () => {
     const user = userEvent.setup();
+    vi.mocked(graphImageResolver.collectInputImages).mockReturnValue([
+      'source-image-path-or-url',
+    ]);
 
     renderNode({
       model: 'custom-provider:openai-images:gpt-image',
-      prompt: 'make a poster',
+      prompt: '@图1 turn it into watercolor',
     });
 
-    await user.click(screen.getByRole('button', { name: 'canvas.generate' }));
+    await user.click(screen.getByRole('button', { name: 'node.imageEdit.edit' }));
 
     await waitFor(() => {
       expect(buildNodeGeneratePayload).toHaveBeenCalledWith(
         expect.objectContaining({
-          action: undefined,
-          referenceImages: [],
+          action: 'edit',
+          referenceImages: ['source-image-path-or-url'],
         })
       );
     });

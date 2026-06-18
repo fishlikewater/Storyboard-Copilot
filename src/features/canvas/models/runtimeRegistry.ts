@@ -3,6 +3,7 @@ import {
   getImageModel,
 } from './registry';
 import type {
+  ResolutionOption,
   RuntimeImageModelDefinition,
   RuntimeModelProviderDefinition,
 } from './types';
@@ -12,6 +13,12 @@ import {
   resolveOpenApiConnection,
   type CustomProviderConfig,
 } from '@/stores/customProviderConfig';
+
+const CUSTOM_RESOLUTION_OPTIONS: ResolutionOption[] = [
+  { value: '1920x1080', label: '1K' },
+  { value: '2560x1440', label: '2K' },
+  { value: '3840x2160', label: '4K' },
+];
 
 const SUPPLIER_CONFIGURATION_PROVIDER_ID = '__unconfigured__';
 const SUPPLIER_CONFIGURATION_MODEL_ID = buildCustomProviderModelId(
@@ -54,6 +61,9 @@ export function listRuntimeImageModels(
         displayName: model.displayName,
         providerId: buildCustomRuntimeProviderId(provider.id),
         description: `${provider.name} / ${model.remoteModelId}`,
+        resolutions: CUSTOM_RESOLUTION_OPTIONS,
+        defaultResolution: CUSTOM_RESOLUTION_OPTIONS[0].value,
+        resolveResolutions: () => CUSTOM_RESOLUTION_OPTIONS,
         pricing: undefined,
         resolveRequest: ({ referenceImageCount }) => ({
           requestModel: buildCustomProviderModelId(provider.id, model.id),
@@ -68,7 +78,7 @@ export function listRuntimeImageModels(
           apiKey: openapiConnection.apiKey,
           remoteModelId: model.remoteModelId,
         },
-        supportsResolutionSelection: false,
+        supportsResolutionSelection: true,
       }));
   });
 

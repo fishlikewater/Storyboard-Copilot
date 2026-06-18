@@ -195,6 +195,7 @@ export function CustomProviderEditorDialog({
                 >
                   <option value="openapi">{t('settings.customProviderProtocolOpenapi')}</option>
                   <option value="openai-image">{t('settings.customProviderProtocolOpenaiImage')}</option>
+                  <option value="agnes">Agnes</option>
                 </UiSelect>
               </label>
             </div>
@@ -207,7 +208,9 @@ export function CustomProviderEditorDialog({
                 <div className="mt-1 text-[11px] text-text-muted">
                   {draft.protocol === 'openai-image'
                       ? t('settings.customProviderConnectionOpenaiImageDesc')
-                    : t('settings.customProviderConnectionOpenapiDesc')}
+                    : draft.protocol === 'agnes'
+                      ? 'Agnes Image 2.1 Flash 协议'
+                      : t('settings.customProviderConnectionOpenapiDesc')}
                 </div>
               </div>
 

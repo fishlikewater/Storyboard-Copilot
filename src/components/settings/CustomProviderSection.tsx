@@ -162,6 +162,8 @@ export function CustomProviderSection({
                   className="h-10 text-sm"
                 >
                   <option value="openapi">{t('settings.customProviderProtocolOpenapi')}</option>
+                  <option value="openai-image">{t('settings.customProviderProtocolOpenaiImage')}</option>
+                  <option value="agnes">Agnes</option>
                 </UiSelect>
               </label>
             </div>

@@ -293,6 +293,13 @@ fn is_custom_openai_image_runtime(runtime: Option<&crate::ai::RuntimeProviderCon
     )
 }
 
+fn is_custom_agnes_runtime(runtime: Option<&crate::ai::RuntimeProviderConfig>) -> bool {
+    matches!(
+        resolve_custom_provider_protocol(runtime),
+        Some("agnes")
+    )
+}
+
 fn normalize_action(action: Option<&str>) -> &'static str {
     match action {
         Some("edit") => "edit",
@@ -428,6 +435,67 @@ pub async fn submit_generate_image_job(
             };
             if let Err(error) = update_result {
                 info!("Failed to update custom openapi generation job: {}", error);
+            }
+            let mut active_set = active_non_resumable_job_ids().write().await;
+            active_set.remove(spawned_job_id.as_str());
+        });
+
+        return Ok(job_id);
+    }
+
+    if is_custom_agnes_runtime(req.provider_runtime.as_ref()) {
+        let runtime = req
+            .provider_runtime
+            .clone()
+            .ok_or_else(|| "Missing custom Agnes provider runtime config".to_string())?;
+
+        insert_generation_job(
+            &app,
+            job_id.as_str(),
+            "custom-agnes-provider",
+            "running",
+            false,
+            None,
+            None,
+            None,
+            None,
+        )?;
+        {
+            let mut active_set = active_non_resumable_job_ids().write().await;
+            active_set.insert(job_id.clone());
+        }
+
+        let app_handle = app.clone();
+        let spawned_job_id = job_id.clone();
+        tauri::async_runtime::spawn(async move {
+            let result = match normalize_action(req.action.as_deref()) {
+                "edit" => crate::ai::providers::agnes::edit(&req, &runtime).await,
+                _ => crate::ai::providers::agnes::generate(&req, &runtime).await,
+            };
+            let update_result = match result {
+                Ok(image_source) => update_generation_job(
+                    &app_handle,
+                    spawned_job_id.as_str(),
+                    "succeeded",
+                    Some(image_source.as_str()),
+                    None,
+                ),
+                Err(error) => {
+                    let message = error.to_string();
+                    update_generation_job(
+                        &app_handle,
+                        spawned_job_id.as_str(),
+                        "failed",
+                        None,
+                        Some(message.as_str()),
+                    )
+                }
+            };
+            if let Err(error) = update_result {
+                info!(
+                    "Failed to update custom Agnes generation job: {}",
+                    error
+                );
             }
             let mut active_set = active_non_resumable_job_ids().write().await;
             active_set.remove(spawned_job_id.as_str());

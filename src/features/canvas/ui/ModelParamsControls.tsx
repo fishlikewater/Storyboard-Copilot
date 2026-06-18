@@ -276,8 +276,8 @@ export const ModelParamsControls = memo(({
     ? 'truncate text-[10px] leading-none'
     : 'truncate';
   const paramsSecondaryTextClassName = isCompactTrigger
-    ? 'text-[10px] leading-none text-text-muted/80'
-    : 'text-text-muted/80';
+    ? 'shrink-0 text-[10px] leading-none text-text-muted/80'
+    : 'shrink-0 text-text-muted/80 truncate';
   const extraParamSchema = selectedModel.extraParamsSchema ?? [];
   const inlineExtraParamSchema = useMemo(
     () =>
@@ -416,7 +416,7 @@ export const ModelParamsControls = memo(({
   };
 
   return (
-    <div ref={containerRef} className="flex items-center gap-1">
+    <div ref={containerRef} className="flex min-w-0 items-center gap-1">
       <div ref={modelTriggerRef} className="relative flex">
         <UiChipButton
           active={openPanel === 'model'}
@@ -445,7 +445,7 @@ export const ModelParamsControls = memo(({
         </UiChipButton>
       </div>
 
-      <div ref={paramsTriggerRef} className="relative flex">
+      <div ref={paramsTriggerRef} className="relative flex min-w-0">
         <UiChipButton
           active={openPanel === 'params'}
           className={`${chipClassName} ${paramsChipClassName}`}

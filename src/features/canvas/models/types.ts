@@ -8,7 +8,7 @@ export interface ModelProviderDefinition {
   label: string;
 }
 
-export type RuntimeCustomProviderProtocol = 'openapi' | 'openai-image';
+export type RuntimeCustomProviderProtocol = 'openapi' | 'openai-image' | 'agnes';
 
 export interface RuntimeProviderConfig {
   kind: 'builtin' | 'custom-provider';
