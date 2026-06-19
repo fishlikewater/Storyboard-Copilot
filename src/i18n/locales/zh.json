@@ -195,6 +195,14 @@
     "title": "设置",
     "suppliers": "供应商",
     "suppliersDesc": "管理使用 OpenAPI 或 OpenAI Image 接入协议的自定义供应商及其模型。",
+    "videoProvidersTitle": "视频供应商",
+    "videoProvidersDesc": "管理视频生成供应商及其模型配置。",
+    "videoProvidersAdd": "添加视频供应商",
+    "videoProvidersEdit": "编辑视频供应商",
+    "videoProvidersEmpty": "暂时还没有视频供应商，点击右上角可以新增。",
+    "videoProviderProtocolAgnesVideo": "Agnes Video",
+    "videoProviderConnectionDesc": "使用 Agnes Video V2.0 API 接入视频生成服务。",
+    "videoProviderBaseUrlPlaceholder": "例如：https://apihub.agnes-ai.com",
     "addSupplier": "添加供应商",
     "editSupplier": "编辑供应商",
     "deleteSupplierTitle": "删除供应商",
@@ -359,4 +367,3 @@
     "copyReport": "复制报错信息"
   }
 }
-

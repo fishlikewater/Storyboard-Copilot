@@ -195,6 +195,14 @@
     "title": "Settings",
     "suppliers": "Suppliers",
     "suppliersDesc": "Manage custom suppliers that use OpenAPI or OpenAI Image and their models.",
+    "videoProvidersTitle": "Video Providers",
+    "videoProvidersDesc": "Manage video generation suppliers and their model configurations.",
+    "videoProvidersAdd": "Add Video Provider",
+    "videoProvidersEdit": "Edit Video Provider",
+    "videoProvidersEmpty": "No video providers yet. Click the button above to add one.",
+    "videoProviderProtocolAgnesVideo": "Agnes Video",
+    "videoProviderConnectionDesc": "Connect to video generation service using Agnes Video V2.0 API.",
+    "videoProviderBaseUrlPlaceholder": "e.g. https://apihub.agnes-ai.com",
     "addSupplier": "Add Supplier",
     "editSupplier": "Edit Supplier",
     "deleteSupplierTitle": "Delete Supplier",
@@ -359,4 +367,3 @@
     "copyReport": "Copy error report"
   }
 }
-

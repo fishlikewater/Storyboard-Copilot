@@ -1,0 +1,21 @@
+{
+  "id": "video-provider-agnes",
+  "name": "video-provider-agnes",
+  "title": "设置页面接入视频供应商（Agnes Video V2.0）",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-19",
+  "completedAt": "2026-06-19",
+  "commit": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

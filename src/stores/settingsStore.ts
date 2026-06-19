@@ -12,6 +12,10 @@ import {
   type CustomProviderConfig,
 } from '@/stores/customProviderConfig';
 import {
+  normalizeVideoProviders,
+  type VideoProviderConfig,
+} from '@/stores/videoProviderConfig';
+import {
   normalizePromptTemplates,
   type PromptTemplateConfig,
 } from '@/stores/promptTemplateConfig';
@@ -23,6 +27,7 @@ export type CanvasEdgeRoutingMode = 'spline' | 'orthogonal' | 'smartOrthogonal';
 interface SettingsState {
   isHydrated: boolean;
   customProviders: CustomProviderConfig[];
+  videoProviders: VideoProviderConfig[];
   promptTemplates: PromptTemplateConfig[];
   downloadPresetPaths: string[];
   useUploadFilenameAsNodeTitle: boolean;
@@ -45,6 +50,7 @@ interface SettingsState {
   enableUpdateDialog: boolean;
   markHydrated: () => void;
   setCustomProviders: (providers: CustomProviderConfig[]) => void;
+  setVideoProviders: (providers: VideoProviderConfig[]) => void;
   setPromptTemplates: (templates: PromptTemplateConfig[]) => void;
   setDownloadPresetPaths: (paths: string[]) => void;
   setUseUploadFilenameAsNodeTitle: (enabled: boolean) => void;
@@ -136,6 +142,7 @@ export const useSettingsStore = create<SettingsState>()(
     (set) => ({
       isHydrated: false,
       customProviders: [],
+      videoProviders: [],
       promptTemplates: [],
       downloadPresetPaths: [],
       useUploadFilenameAsNodeTitle: true,
@@ -159,6 +166,8 @@ export const useSettingsStore = create<SettingsState>()(
       markHydrated: () => set({ isHydrated: true }),
       setCustomProviders: (customProviders) =>
         set({ customProviders: normalizeCustomProviders(customProviders) }),
+      setVideoProviders: (videoProviders) =>
+        set({ videoProviders: normalizeVideoProviders(videoProviders) }),
       setPromptTemplates: (promptTemplates) =>
         set({ promptTemplates: normalizePromptTemplates(promptTemplates) }),
       setDownloadPresetPaths: (paths) => {
@@ -201,7 +210,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'settings-storage',
-      version: 12,
+      version: 13,
       onRehydrateStorage: () => {
         return (state, error) => {
           if (error) {
@@ -235,6 +244,9 @@ export const useSettingsStore = create<SettingsState>()(
 
         const migratedCustomProviders = normalizeCustomProviders(state.customProviders);
         const migratedPromptTemplates = normalizePromptTemplates(state.promptTemplates);
+        const migratedVideoProviders = normalizeVideoProviders(
+          ((state as Record<string, unknown>).videoProviders as VideoProviderConfig[]) ?? []
+        );
         const ignoreAtTagWhenCopyingAndGenerating =
           state.ignoreAtTagWhenCopyingAndGenerating ?? true;
 
@@ -242,6 +254,7 @@ export const useSettingsStore = create<SettingsState>()(
           ...legacyState,
           isHydrated: true,
           customProviders: migratedCustomProviders,
+          videoProviders: migratedVideoProviders,
           promptTemplates: migratedPromptTemplates,
           ignoreAtTagWhenCopyingAndGenerating,
           canvasEdgeRoutingMode: normalizeCanvasEdgeRoutingMode(state.canvasEdgeRoutingMode),
