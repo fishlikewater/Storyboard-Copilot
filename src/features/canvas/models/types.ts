@@ -83,3 +83,32 @@ export interface RuntimeImageModelDefinition extends ImageModelDefinition {
   runtimeProvider: RuntimeProviderConfig;
   supportsResolutionSelection: boolean;
 }
+
+export interface TextModelDefinition {
+  id: string;
+  mediaType: 'text';
+  displayName: string;
+  providerId: string;
+  description: string;
+}
+
+export interface RuntimeTextModelDefinition extends TextModelDefinition {
+  runtimeProvider: RuntimeProviderConfig;
+}
+
+export interface VideoModelDefinition {
+  id: string;
+  mediaType: 'video';
+  displayName: string;
+  providerId: string;
+  description: string;
+  defaultAspectRatio: string;
+  defaultResolution: string;
+  aspectRatios: AspectRatioOption[];
+  resolutions: ResolutionOption[];
+}
+
+export interface RuntimeVideoModelDefinition extends VideoModelDefinition {
+  runtimeProvider: RuntimeProviderConfig;
+  supportsResolutionSelection: boolean;
+}

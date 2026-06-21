@@ -9,7 +9,7 @@ const customProviders: CustomProviderConfig[] = [
   {
     id: 'gateway-a',
     name: 'Acme Gateway',
-    protocol: 'openapi',
+    protocol: 'openapi', mediaType: 'image',
     baseUrl: 'https://sg2c.dchai.cn/v1',
     apiKey: 'token-1',
     models: [
@@ -27,7 +27,7 @@ const openAiImageProviders: CustomProviderConfig[] = [
   {
     id: 'openai-images',
     name: 'OpenAI Images',
-    protocol: 'openai-image',
+    protocol: 'openai-image', mediaType: 'image',
     baseUrl: 'https://api.openai.com/v1',
     apiKey: 'sk-openai',
     connection: {

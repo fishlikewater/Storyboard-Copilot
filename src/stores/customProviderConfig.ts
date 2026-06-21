@@ -1,5 +1,9 @@
 export type CustomProviderProtocol = 'openapi' | 'openai-image' | 'agnes';
 
+export type CustomProviderMediaType = 'text' | 'image' | 'video';
+
+export const CUSTOM_PROVIDER_MEDIA_TYPES: CustomProviderMediaType[] = ['text', 'image', 'video'];
+
 export interface CustomProviderModelConfig {
   id: string;
   displayName: string;
@@ -20,6 +24,7 @@ export interface CustomProviderConfig {
   id: string;
   name: string;
   protocol: CustomProviderProtocol;
+  mediaType: CustomProviderMediaType;
   baseUrl: string;
   apiKey: string;
   connection?: CustomProviderConnectionConfig;
@@ -130,6 +135,7 @@ export function createCustomProviderDraft(): CustomProviderConfig {
     id: createDraftId('provider'),
     name: '',
     protocol: DEFAULT_PROTOCOL,
+    mediaType: 'image',
     baseUrl: connection.openapi?.baseUrl ?? '',
     apiKey: connection.openapi?.apiKey ?? '',
     connection,
@@ -157,6 +163,13 @@ export function isCustomProviderConfigured(provider: CustomProviderConfig): bool
   return connection.baseUrl.length > 0 && connection.apiKey.length > 0;
 }
 
+function normalizeMediaType(value: string | null | undefined): CustomProviderMediaType {
+  if (value === 'text' || value === 'video') {
+    return value;
+  }
+  return 'image';
+}
+
 export function normalizeCustomProviders(
   input: CustomProviderConfig[] | null | undefined
 ): CustomProviderConfig[] {
@@ -169,6 +182,7 @@ export function normalizeCustomProviders(
     })
     .map((provider) => {
       const protocol = normalizeProtocol(provider.protocol);
+      const mediaType = normalizeMediaType((provider as { mediaType?: string }).mediaType);
       const connection = normalizeConnection(provider);
       const openapiConnection = connection.openapi;
 
@@ -176,6 +190,7 @@ export function normalizeCustomProviders(
         id: normalizeConfigId(provider.id),
         name: trim(provider.name),
         protocol,
+        mediaType,
         baseUrl: openapiConnection?.baseUrl ?? '',
         apiKey: openapiConnection?.apiKey ?? '',
         connection,

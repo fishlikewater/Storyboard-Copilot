@@ -27,6 +27,17 @@ function buildProtocolSummary(provider: CustomProviderConfig, t: (key: string) =
   return t('settings.customProviderProtocolOpenapi');
 }
 
+function buildMediaTypeSummary(provider: CustomProviderConfig, t: (key: string) => string): string {
+  switch (provider.mediaType) {
+    case 'text':
+      return t('settings.customProviderMediaTypeText');
+    case 'video':
+      return t('settings.customProviderMediaTypeVideo');
+    default:
+      return t('settings.customProviderMediaTypeImage');
+  }
+}
+
 export function CustomProvidersPage({
   providers,
   onAdd,
@@ -60,7 +71,12 @@ export function CustomProvidersPage({
               className="flex items-center justify-between gap-4 rounded-lg border border-border-dark bg-bg-dark p-4"
             >
               <div className="min-w-0 flex-1 space-y-2">
-                <div className="truncate text-sm font-medium text-text-dark">{provider.name}</div>
+                <div className="flex items-center gap-2 truncate text-sm font-medium text-text-dark">
+                  {provider.name}
+                  <span className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
+                    {buildMediaTypeSummary(provider, t)}
+                  </span>
+                </div>
                 <div className="grid gap-1 text-xs text-text-muted md:grid-cols-2">
                   <div className="min-w-0 truncate">
                     <span>{t('settings.customProviderProtocol')}</span>

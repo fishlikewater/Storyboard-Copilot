@@ -729,6 +729,357 @@ pub async fn get_generate_image_job(
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TextCompletionRequestDto {
+    pub prompt: String,
+    pub model: String,
+    pub provider_runtime: Option<crate::ai::RuntimeProviderConfig>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TextCompletionJobStatusDto {
+    pub job_id: String,
+    pub status: String,
+    pub result: Option<String>,
+    pub error: Option<String>,
+}
+
+#[tauri::command]
+pub async fn submit_text_completion_job(
+    app: AppHandle,
+    request: TextCompletionRequestDto,
+) -> Result<String, String> {
+    info!("Submitting text completion job with model: {}", request.model);
+
+    let job_id = Uuid::new_v4().to_string();
+    let runtime = request
+        .provider_runtime
+        .clone()
+        .ok_or_else(|| "Missing provider runtime config for text completion".to_string())?;
+
+    let provider_id = if is_custom_openapi_runtime(Some(&runtime)) {
+        CUSTOM_OPENAPI_PROVIDER_ID
+    } else {
+        "registry_provider"
+    };
+
+    insert_generation_job(
+        &app,
+        job_id.as_str(),
+        provider_id,
+        "running",
+        false,
+        None,
+        None,
+        None,
+        None,
+    )?;
+
+    {
+        let mut active_set = active_non_resumable_job_ids().write().await;
+        active_set.insert(job_id.clone());
+    }
+
+    let app_handle = app.clone();
+    let spawned_job_id = job_id.clone();
+    let prompt = request.prompt.clone();
+    let model = request.model.clone();
+
+    tauri::async_runtime::spawn(async move {
+        let result = if is_custom_openapi_runtime(Some(&runtime)) {
+            crate::ai::providers::openapi_compat::generate_text(&prompt, &model, &runtime).await
+        } else {
+            Err(AIError::InvalidRequest(
+                "Text completion only supports openapi protocol".to_string(),
+            ))
+        };
+
+        let update_result = match result {
+            Ok(text) => update_generation_job(
+                &app_handle,
+                spawned_job_id.as_str(),
+                "succeeded",
+                Some(text.as_str()),
+                None,
+            ),
+            Err(error) => {
+                let message = error.to_string();
+                update_generation_job(
+                    &app_handle,
+                    spawned_job_id.as_str(),
+                    "failed",
+                    None,
+                    Some(message.as_str()),
+                )
+            }
+        };
+        if let Err(error) = update_result {
+            info!("Failed to update text completion job: {}", error);
+        }
+        let mut active_set = active_non_resumable_job_ids().write().await;
+        active_set.remove(spawned_job_id.as_str());
+    });
+
+    Ok(job_id)
+}
+
+#[tauri::command]
+pub async fn get_text_completion_job(
+    app: AppHandle,
+    job_id: String,
+) -> Result<TextCompletionJobStatusDto, String> {
+    let record = get_generation_job(&app, &job_id)?;
+
+    let record = match record {
+        Some(r) => r,
+        None => {
+            return Ok(TextCompletionJobStatusDto {
+                job_id,
+                status: "not_found".to_string(),
+                result: None,
+                error: Some("Job not found".to_string()),
+            });
+        }
+    };
+
+    if record.status == "succeeded" || record.status == "failed" {
+        return Ok(TextCompletionJobStatusDto {
+            job_id: record.job_id,
+            status: record.status,
+            result: record.result,
+            error: record.error,
+        });
+    }
+
+    if !record.resumable {
+        let active_set = active_non_resumable_job_ids().read().await;
+        if active_set.contains(&record.job_id) {
+            return Ok(TextCompletionJobStatusDto {
+                job_id: record.job_id,
+                status: "running".to_string(),
+                result: None,
+                error: None,
+            });
+        }
+        update_generation_job(&app, &record.job_id, "failed", None, Some("Interrupted"))?;
+        return Ok(TextCompletionJobStatusDto {
+            job_id: record.job_id,
+            status: "failed".to_string(),
+            result: None,
+            error: Some("Interrupted".to_string()),
+        });
+    }
+
+    Err("Text completion jobs do not support task resume".to_string())
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct VideoGenerationRequestDto {
+    pub prompt: String,
+    pub model: String,
+    pub size: String,
+    pub aspect_ratio: String,
+    pub reference_images: Option<Vec<String>>,
+    pub provider_runtime: Option<crate::ai::RuntimeProviderConfig>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct VideoGenerationJobStatusDto {
+    pub job_id: String,
+    pub status: String,
+    pub result: Option<String>,
+    pub error: Option<String>,
+}
+
+#[tauri::command]
+pub async fn submit_video_generation_job(
+    app: AppHandle,
+    request: VideoGenerationRequestDto,
+) -> Result<String, String> {
+    info!("Submitting video generation job with model: {}", request.model);
+
+    let req = GenerateRequest {
+        prompt: request.prompt,
+        model: request.model,
+        size: request.size,
+        aspect_ratio: request.aspect_ratio,
+        action: None,
+        reference_images: request.reference_images,
+        extra_params: None,
+        provider_runtime: request.provider_runtime,
+    };
+
+    let job_id = Uuid::new_v4().to_string();
+
+    let registry = get_registry();
+    let provider = registry
+        .resolve_provider_for_model(&req.model)
+        .or_else(|| registry.get_default_provider())
+        .ok_or_else(|| "No video provider found for model".to_string())?;
+
+    let resumable = provider.supports_task_resume();
+
+    match provider.submit_task(req).await {
+        Ok(ProviderTaskSubmission::Queued(handle)) => {
+            let meta_json = handle
+                .metadata
+                .as_ref()
+                .map(|v| v.to_string());
+            let meta_str = meta_json.as_deref();
+            insert_generation_job(
+                &app,
+                job_id.as_str(),
+                provider.name(),
+                "running",
+                resumable,
+                Some(&handle.task_id),
+                meta_str,
+                None,
+                None,
+            )?;
+            Ok(job_id)
+        }
+        Ok(ProviderTaskSubmission::Succeeded(url)) => {
+            insert_generation_job(
+                &app,
+                job_id.as_str(),
+                provider.name(),
+                "succeeded",
+                false,
+                None,
+                None,
+                Some(&url),
+                None,
+            )?;
+            Ok(job_id)
+        }
+        Err(error) => {
+            let message = error.to_string();
+            insert_generation_job(
+                &app,
+                job_id.as_str(),
+                provider.name(),
+                "failed",
+                false,
+                None,
+                None,
+                None,
+                Some(&message),
+            )?;
+            Ok(job_id)
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn get_video_generation_job(
+    app: AppHandle,
+    job_id: String,
+) -> Result<VideoGenerationJobStatusDto, String> {
+    let record = get_generation_job(&app, &job_id)?;
+
+    let record = match record {
+        Some(r) => r,
+        None => {
+            return Ok(VideoGenerationJobStatusDto {
+                job_id,
+                status: "not_found".to_string(),
+                result: None,
+                error: Some("Job not found".to_string()),
+            });
+        }
+    };
+
+    if record.status == "succeeded" || record.status == "failed" {
+        return Ok(VideoGenerationJobStatusDto {
+            job_id: record.job_id,
+            status: record.status,
+            result: record.result,
+            error: record.error,
+        });
+    }
+
+    if !record.resumable {
+        let active_set = active_non_resumable_job_ids().read().await;
+        if active_set.contains(&record.job_id) {
+            return Ok(VideoGenerationJobStatusDto {
+                job_id: record.job_id,
+                status: "running".to_string(),
+                result: None,
+                error: None,
+            });
+        }
+        update_generation_job(&app, &record.job_id, "failed", None, Some("Interrupted"))?;
+        return Ok(VideoGenerationJobStatusDto {
+            job_id: record.job_id,
+            status: "failed".to_string(),
+            result: None,
+            error: Some("Interrupted".to_string()),
+        });
+    }
+
+    let registry = get_registry();
+    let provider = registry
+        .get_provider(&record.provider_id)
+        .ok_or_else(|| format!("Provider {} not found", record.provider_id))?;
+
+    let external_task_id = record
+        .external_task_id
+        .ok_or_else(|| "Missing external task id".to_string())?;
+
+    let meta: Option<Value> = record
+        .external_task_meta_json
+        .as_deref()
+        .and_then(|s| serde_json::from_str(s).ok());
+
+    let handle = ProviderTaskHandle {
+        task_id: external_task_id,
+        metadata: meta,
+    };
+
+    match provider.poll_task(handle).await {
+        Ok(ProviderTaskPollResult::Running) => Ok(VideoGenerationJobStatusDto {
+            job_id: record.job_id,
+            status: "running".to_string(),
+            result: None,
+            error: None,
+        }),
+        Ok(ProviderTaskPollResult::Succeeded(url)) => {
+            update_generation_job(&app, &record.job_id, "succeeded", Some(&url), None)?;
+            Ok(VideoGenerationJobStatusDto {
+                job_id: record.job_id,
+                status: "succeeded".to_string(),
+                result: Some(url),
+                error: None,
+            })
+        }
+        Err(AIError::TaskFailed(message)) => {
+            update_generation_job(&app, &record.job_id, "failed", None, Some(message.as_str()))?;
+            Ok(VideoGenerationJobStatusDto {
+                job_id: record.job_id,
+                status: "failed".to_string(),
+                result: None,
+                error: Some(message),
+            })
+        }
+        Ok(ProviderTaskPollResult::Failed(message)) => {
+            update_generation_job(&app, &record.job_id, "failed", None, Some(&message))?;
+            Ok(VideoGenerationJobStatusDto {
+                job_id: record.job_id,
+                status: "failed".to_string(),
+                result: None,
+                error: Some(message),
+            })
+        }
+        Err(error) => Ok(VideoGenerationJobStatusDto {
+            job_id: record.job_id,
+            status: "running".to_string(),
+            result: None,
+            error: Some(error.to_string()),
+        }),
+    }
+}
+
 #[tauri::command]
 pub async fn generate_image(request: GenerateRequestDto) -> Result<String, String> {
     info!("Generating image with model: {}", request.model);

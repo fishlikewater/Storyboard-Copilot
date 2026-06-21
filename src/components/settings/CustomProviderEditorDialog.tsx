@@ -158,7 +158,7 @@ export function CustomProviderEditorDialog({
           className="ui-scrollbar min-h-0 flex-1 overflow-y-auto pr-1"
         >
           <div className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-3">
               <label className="space-y-1">
                 <span className="text-xs font-medium text-text-dark">
                   {t('settings.customProviderName')}
@@ -174,6 +174,27 @@ export function CustomProviderEditorDialog({
                   }
                   className={hasFieldError(validationErrors, 'provider[0].name') ? 'border-red-400/60' : ''}
                 />
+              </label>
+
+              <label className="space-y-1">
+                <span className="text-xs font-medium text-text-dark">
+                  {t('settings.customProviderMediaType')}
+                </span>
+                <UiSelect
+                  aria-label={t('settings.customProviderMediaType')}
+                  value={draft.mediaType}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      mediaType: event.target.value as CustomProviderConfig['mediaType'],
+                    }))
+                  }
+                  className="h-10 text-sm"
+                >
+                  <option value="image">{t('settings.customProviderMediaTypeImage')}</option>
+                  <option value="text">{t('settings.customProviderMediaTypeText')}</option>
+                  <option value="video">{t('settings.customProviderMediaTypeVideo')}</option>
+                </UiSelect>
               </label>
 
               <label className="space-y-1">

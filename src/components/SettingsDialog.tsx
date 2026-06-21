@@ -6,8 +6,6 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { CustomProviderEditorDialog } from '@/components/settings/CustomProviderEditorDialog';
 import { CustomProvidersPage } from '@/components/settings/CustomProvidersPage';
-import { VideoProviderEditorDialog } from '@/components/settings/VideoProviderEditorDialog';
-import { VideoProvidersPage } from '@/components/settings/VideoProvidersPage';
 import { DeleteProviderConfirmDialog } from '@/components/settings/DeleteProviderConfirmDialog';
 import { UiCheckbox, UiSelect } from '@/components/ui';
 import { UI_CONTENT_OVERLAY_INSET_CLASS, UI_DIALOG_TRANSITION_MS } from '@/components/ui/motion';
@@ -74,7 +72,6 @@ export function SettingsDialog({
   const { t, i18n } = useTranslation();
   const {
     customProviders,
-    videoProviders,
     downloadPresetPaths,
     useUploadFilenameAsNodeTitle,
     storyboardGenKeepStyleConsistent,
@@ -95,7 +92,6 @@ export function SettingsDialog({
     autoCheckAppUpdateOnLaunch,
     enableUpdateDialog,
     setCustomProviders,
-    setVideoProviders,
     setDownloadPresetPaths,
     setUseUploadFilenameAsNodeTitle,
     setStoryboardGenKeepStyleConsistent,
@@ -158,9 +154,6 @@ export function SettingsDialog({
   const [isCreateProviderDialogOpen, setIsCreateProviderDialogOpen] = useState(false);
   const [editingProviderId, setEditingProviderId] = useState<string | null>(null);
   const [pendingDeleteProviderId, setPendingDeleteProviderId] = useState<string | null>(null);
-  const [isCreateVideoProviderDialogOpen, setIsCreateVideoProviderDialogOpen] = useState(false);
-  const [editingVideoProviderId, setEditingVideoProviderId] = useState<string | null>(null);
-  const [pendingDeleteVideoProviderId, setPendingDeleteVideoProviderId] = useState<string | null>(null);
   const { shouldRender, isVisible } = useDialogTransition(isOpen, UI_DIALOG_TRANSITION_MS);
   const editingProvider = useMemo(
     () => customProviders.find((provider) => provider.id === editingProviderId) ?? null,
@@ -169,14 +162,6 @@ export function SettingsDialog({
   const pendingDeleteProvider = useMemo(
     () => customProviders.find((provider) => provider.id === pendingDeleteProviderId) ?? null,
     [customProviders, pendingDeleteProviderId]
-  );
-  const editingVideoProvider = useMemo(
-    () => videoProviders.find((provider) => provider.id === editingVideoProviderId) ?? null,
-    [videoProviders, editingVideoProviderId]
-  );
-  const pendingDeleteVideoProvider = useMemo(
-    () => videoProviders.find((provider) => provider.id === pendingDeleteVideoProviderId) ?? null,
-    [videoProviders, pendingDeleteVideoProviderId]
   );
 
   useEffect(() => {
@@ -352,37 +337,6 @@ export function SettingsDialog({
     setPendingDeleteProviderId(null);
   }, [customProviders, pendingDeleteProviderId, setCustomProviders]);
 
-  const handleCloseVideoProviderDialog = useCallback(() => {
-    setIsCreateVideoProviderDialogOpen(false);
-    setEditingVideoProviderId(null);
-  }, []);
-
-  const handleSaveVideoProvider = useCallback(
-    (providerDraft: import('@/stores/videoProviderConfig').VideoProviderConfig) => {
-      const exists = videoProviders.some((provider) => provider.id === providerDraft.id);
-      const nextProviders = exists
-        ? videoProviders.map((provider) =>
-            provider.id === providerDraft.id ? providerDraft : provider
-          )
-        : [...videoProviders, providerDraft];
-
-      setVideoProviders(nextProviders);
-      handleCloseVideoProviderDialog();
-    },
-    [videoProviders, handleCloseVideoProviderDialog, setVideoProviders]
-  );
-
-  const handleConfirmDeleteVideoProvider = useCallback(() => {
-    if (!pendingDeleteVideoProviderId) {
-      return;
-    }
-
-    setVideoProviders(
-      videoProviders.filter((provider) => provider.id !== pendingDeleteVideoProviderId)
-    );
-    setPendingDeleteVideoProviderId(null);
-  }, [videoProviders, pendingDeleteVideoProviderId, setVideoProviders]);
-
   const handleCheckUpdate = useCallback(async () => {
     if (!onCheckUpdate) {
       return;
@@ -489,20 +443,6 @@ export function SettingsDialog({
               </button>
 
               <button
-                onClick={() => setActiveCategory('videoProviders')}
-                className={`
-                w-full flex items-center gap-3 px-4 py-2.5 text-left
-                transition-colors
-                ${activeCategory === 'videoProviders'
-                    ? 'bg-accent/10 text-text-dark border-l-2 border-accent'
-                    : 'text-text-muted hover:bg-bg-dark hover:text-text-dark'
-                  }
-              `}
-              >
-                <span className="text-sm">{t('settings.videoProvidersTitle')}</span>
-              </button>
-
-              <button
                 onClick={() => setActiveCategory('appearance')}
                 className={`
                 w-full flex items-center gap-3 px-4 py-2.5 text-left
@@ -569,17 +509,6 @@ export function SettingsDialog({
                   onAdd={() => setIsCreateProviderDialogOpen(true)}
                   onEdit={setEditingProviderId}
                   onDelete={setPendingDeleteProviderId}
-                />
-              </>
-            )}
-
-            {activeCategory === 'videoProviders' && (
-              <>
-                <VideoProvidersPage
-                  providers={videoProviders}
-                  onAdd={() => setIsCreateVideoProviderDialogOpen(true)}
-                  onEdit={setEditingVideoProviderId}
-                  onDelete={setPendingDeleteVideoProviderId}
                 />
               </>
             )}
@@ -1105,19 +1034,6 @@ export function SettingsDialog({
           providerName={pendingDeleteProvider?.name ?? ''}
           onClose={() => setPendingDeleteProviderId(null)}
           onConfirm={handleConfirmDeleteProvider}
-        />
-        <VideoProviderEditorDialog
-          isOpen={isCreateVideoProviderDialogOpen || editingVideoProvider !== null}
-          mode={editingVideoProvider ? 'edit' : 'create'}
-          initialProvider={editingVideoProvider}
-          onClose={handleCloseVideoProviderDialog}
-          onSave={handleSaveVideoProvider}
-        />
-        <DeleteProviderConfirmDialog
-          isOpen={pendingDeleteVideoProvider !== null}
-          providerName={pendingDeleteVideoProvider?.name ?? ''}
-          onClose={() => setPendingDeleteVideoProviderId(null)}
-          onConfirm={handleConfirmDeleteVideoProvider}
         />
       </div>
     </div>

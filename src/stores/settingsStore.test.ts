@@ -6,7 +6,7 @@ import { getConfiguredProviderCount } from './settingsStore';
 const configuredSupplier: CustomProviderConfig = {
   id: 'gateway-a',
   name: 'Gateway A',
-  protocol: 'openapi',
+  protocol: 'openapi', mediaType: 'image',
   baseUrl: 'https://example.com/v1',
   apiKey: 'supplier-token',
   models: [

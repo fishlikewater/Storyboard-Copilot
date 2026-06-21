@@ -128,6 +128,61 @@ pub async fn generate(
     })
 }
 
+pub async fn generate_text(
+    prompt: &str,
+    _model: &str,
+    runtime: &RuntimeProviderConfig,
+) -> Result<String, AIError> {
+    let base_url = trim(runtime.base_url.as_deref());
+    let api_key = trim(runtime.api_key.as_deref());
+    let remote_model_id = trim(runtime.remote_model_id.as_deref());
+
+    if base_url.is_empty() {
+        return Err(AIError::InvalidRequest(
+            "custom openapi provider missing baseUrl".to_string(),
+        ));
+    }
+    if api_key.is_empty() {
+        return Err(AIError::InvalidRequest(
+            "custom openapi provider missing apiKey".to_string(),
+        ));
+    }
+    if remote_model_id.is_empty() {
+        return Err(AIError::InvalidRequest(
+            "custom openapi provider missing remoteModelId".to_string(),
+        ));
+    }
+
+    let endpoint = format!("{}/chat/completions", base_url.trim_end_matches('/'));
+
+    let response = Client::new()
+        .post(endpoint)
+        .header("Authorization", format!("Bearer {}", api_key))
+        .header("Content-Type", "application/json")
+        .json(&json!({
+            "model": remote_model_id,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+        }))
+        .send()
+        .await?
+        .error_for_status()?;
+
+    let body = response.json::<Value>().await?;
+    let content = body
+        .pointer("/choices/0/message/content")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| {
+            AIError::Provider("OpenAPI response missing choices[0].message.content".to_string())
+        })?;
+
+    Ok(content.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::{build_final_prompt, build_messages, extract_markdown_image_url};

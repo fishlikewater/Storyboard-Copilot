@@ -1,6 +1,5 @@
 export type SettingsCategory =
   | 'suppliers'
-  | 'videoProviders'
   | 'pricing'
   | 'appearance'
   | 'general'

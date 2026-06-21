@@ -12,7 +12,7 @@ describe('customProviderConfig', () => {
       {
         id: ' gateway-a ',
         name: ' 公司网关 ',
-        protocol: 'openapi',
+        protocol: 'openapi', mediaType: 'image',
         baseUrl: ' https://sg2c.dchai.cn/v1/ ',
         apiKey: ' token-1 ',
         models: [
@@ -28,7 +28,7 @@ describe('customProviderConfig', () => {
 
     expect(providers[0]).toMatchObject({
       id: 'gateway-a',
-      protocol: 'openapi',
+      protocol: 'openapi', mediaType: 'image',
       connection: {
         openapi: {
           baseUrl: 'https://sg2c.dchai.cn/v1',
@@ -69,7 +69,7 @@ describe('customProviderConfig', () => {
       {
         id: ' openai images ',
         name: ' OpenAI Images ',
-        protocol: 'openai-image',
+        protocol: 'openai-image', mediaType: 'image',
         connection: {
           openapi: {
             baseUrl: ' https://api.openai.com/v1/ ',
@@ -90,7 +90,7 @@ describe('customProviderConfig', () => {
     expect(providers[0]).toMatchObject({
       id: 'openai-images',
       name: 'OpenAI Images',
-      protocol: 'openai-image',
+      protocol: 'openai-image', mediaType: 'image',
       baseUrl: 'https://api.openai.com/v1',
       apiKey: 'sk-openai',
       connection: {
@@ -114,7 +114,7 @@ describe('customProviderConfig', () => {
         {
           id: 'gateway-openapi',
           name: 'OpenAPI Gateway',
-          protocol: 'openapi',
+          protocol: 'openapi', mediaType: 'image',
           baseUrl: '',
           apiKey: '',
           models: [],

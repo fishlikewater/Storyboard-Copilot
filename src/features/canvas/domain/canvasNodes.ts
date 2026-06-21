@@ -8,6 +8,10 @@ export const CANVAS_NODE_TYPES = {
   group: 'groupNode',
   storyboardSplit: 'storyboardNode',
   storyboardGen: 'storyboardGenNode',
+  storyCard: 'storyCardNode',
+  script: 'scriptNode',
+  videoCard: 'videoCardNode',
+  videoResult: 'videoResultNode',
 } as const;
 
 export type CanvasNodeType = (typeof CANVAS_NODE_TYPES)[keyof typeof CANVAS_NODE_TYPES];
@@ -140,6 +144,44 @@ export interface StoryboardGenNodeData {
   [key: string]: unknown;
 }
 
+export interface StoryCardNodeData extends NodeDisplayData {
+  prompt: string;
+  model: string;
+  isGenerating?: boolean;
+  generationStartedAt?: number | null;
+  generationDurationMs?: number;
+  generationJobId?: string | null;
+}
+
+export interface ScriptNodeData extends NodeDisplayData {
+  content: string;
+  model: string;
+  sourceStoryCardId?: string;
+  isSplitting?: boolean;
+}
+
+export interface VideoCardNodeData extends NodeDisplayData {
+  prompt: string;
+  model: string;
+  size: ImageSize;
+  aspectRatio: string;
+  isGenerating?: boolean;
+  generationStartedAt?: number | null;
+  generationDurationMs?: number;
+  generationJobId?: string | null;
+}
+
+export interface VideoResultNodeData extends NodeDisplayData {
+  videoUrl: string | null;
+  jobId: string | null;
+  status: 'queued' | 'running' | 'succeeded' | 'failed';
+  aspectRatio: string;
+  size: ImageSize;
+  isRefreshing?: boolean;
+  generationJobId?: string | null;
+  isGenerating?: boolean;
+}
+
 export type CanvasNodeData =
   | UploadImageNodeData
   | ExportImageNodeData
@@ -147,7 +189,11 @@ export type CanvasNodeData =
   | GroupNodeData
   | ImageEditNodeData
   | StoryboardSplitNodeData
-  | StoryboardGenNodeData;
+  | StoryboardGenNodeData
+  | StoryCardNodeData
+  | ScriptNodeData
+  | VideoCardNodeData
+  | VideoResultNodeData;
 
 export type CanvasNode = Node<CanvasNodeData, CanvasNodeType>;
 export type CanvasEdge = Edge;
@@ -218,6 +264,30 @@ export function isStoryboardGenNode(
   node: CanvasNode | null | undefined
 ): node is Node<StoryboardGenNodeData, typeof CANVAS_NODE_TYPES.storyboardGen> {
   return node?.type === CANVAS_NODE_TYPES.storyboardGen;
+}
+
+export function isStoryCardNode(
+  node: CanvasNode | null | undefined
+): node is Node<StoryCardNodeData, typeof CANVAS_NODE_TYPES.storyCard> {
+  return node?.type === CANVAS_NODE_TYPES.storyCard;
+}
+
+export function isScriptNode(
+  node: CanvasNode | null | undefined
+): node is Node<ScriptNodeData, typeof CANVAS_NODE_TYPES.script> {
+  return node?.type === CANVAS_NODE_TYPES.script;
+}
+
+export function isVideoCardNode(
+  node: CanvasNode | null | undefined
+): node is Node<VideoCardNodeData, typeof CANVAS_NODE_TYPES.videoCard> {
+  return node?.type === CANVAS_NODE_TYPES.videoCard;
+}
+
+export function isVideoResultNode(
+  node: CanvasNode | null | undefined
+): node is Node<VideoResultNodeData, typeof CANVAS_NODE_TYPES.videoResult> {
+  return node?.type === CANVAS_NODE_TYPES.videoResult;
 }
 
 export function nodeHasImage(node: CanvasNode | null | undefined): boolean {

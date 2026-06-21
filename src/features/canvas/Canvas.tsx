@@ -525,6 +525,148 @@ export function Canvas() {
   }, [nodes, updateNodeData]);
 
   useEffect(() => {
+    const sleep = (delayMs: number) =>
+      new Promise<void>((resolve) => {
+        window.setTimeout(resolve, delayMs);
+      });
+
+    const pendingStoryNodes = nodes.filter((node) => {
+      if (node.type !== CANVAS_NODE_TYPES.storyCard) {
+        return false;
+      }
+      const data = node.data as Record<string, unknown>;
+      return data.isGenerating === true && typeof data.generationJobId === 'string' && data.generationJobId.length > 0;
+    });
+
+    for (const pendingNode of pendingStoryNodes) {
+      if (activeGenerationPollNodeIdsRef.current.has(`story-${pendingNode.id}`)) {
+        continue;
+      }
+      activeGenerationPollNodeIdsRef.current.add(`story-${pendingNode.id}`);
+
+      void (async () => {
+        try {
+          while (true) {
+            const currentNode = useCanvasStore.getState().nodes.find((node) => node.id === pendingNode.id);
+            if (!currentNode) {
+              break;
+            }
+
+            const currentData = currentNode.data as Record<string, unknown>;
+            const jobId = typeof currentData.generationJobId === 'string' ? currentData.generationJobId : '';
+            const isGenerating = currentData.isGenerating === true;
+            if (!jobId || !isGenerating) {
+              break;
+            }
+
+            const status = await canvasAiGateway.getTextCompletionJob(jobId).catch((error) => {
+              console.warn('[StoryCardJob] poll failed', { nodeId: pendingNode.id, jobId, error });
+              return null;
+            });
+            if (!status) {
+              await sleep(GENERATION_JOB_POLL_INTERVAL_MS);
+              continue;
+            }
+
+            if (status.status === 'queued' || status.status === 'running') {
+              await sleep(GENERATION_JOB_POLL_INTERVAL_MS);
+              continue;
+            }
+
+            if (status.status === 'succeeded' && typeof status.result === 'string') {
+              const scriptNodeId = useCanvasStore.getState().edges.find(
+                (edge) => edge.source === pendingNode.id
+              )?.target;
+              if (scriptNodeId) {
+                updateNodeData(scriptNodeId, { content: status.result });
+              }
+              updateNodeData(pendingNode.id, {
+                isGenerating: false,
+                generationStartedAt: null,
+                generationJobId: null,
+              });
+              break;
+            }
+
+            updateNodeData(pendingNode.id, {
+              isGenerating: false,
+              generationStartedAt: null,
+              generationJobId: null,
+            });
+            break;
+          }
+        } finally {
+          activeGenerationPollNodeIdsRef.current.delete(`story-${pendingNode.id}`);
+        }
+      })();
+    }
+
+    const pendingVideoResultNodes = nodes.filter((node) => {
+      if (node.type !== CANVAS_NODE_TYPES.videoResult) {
+        return false;
+      }
+      const data = node.data as Record<string, unknown>;
+      return data.isGenerating === true && typeof data.generationJobId === 'string' && data.generationJobId.length > 0;
+    });
+
+    for (const pendingNode of pendingVideoResultNodes) {
+      if (activeGenerationPollNodeIdsRef.current.has(`video-${pendingNode.id}`)) {
+        continue;
+      }
+      activeGenerationPollNodeIdsRef.current.add(`video-${pendingNode.id}`);
+
+      void (async () => {
+        try {
+          while (true) {
+            const currentNode = useCanvasStore.getState().nodes.find((node) => node.id === pendingNode.id);
+            if (!currentNode) {
+              break;
+            }
+
+            const currentData = currentNode.data as Record<string, unknown>;
+            const jobId = typeof currentData.generationJobId === 'string' ? currentData.generationJobId : '';
+            const isGenerating = currentData.isGenerating === true;
+            if (!jobId || !isGenerating) {
+              break;
+            }
+
+            const status = await canvasAiGateway.getVideoGenerationJob(jobId).catch((error) => {
+              console.warn('[VideoResultJob] poll failed', { nodeId: pendingNode.id, jobId, error });
+              return null;
+            });
+            if (!status) {
+              await sleep(GENERATION_JOB_POLL_INTERVAL_MS);
+              continue;
+            }
+
+            if (status.status === 'queued' || status.status === 'running') {
+              await sleep(GENERATION_JOB_POLL_INTERVAL_MS);
+              continue;
+            }
+
+            if (status.status === 'succeeded' && typeof status.result === 'string') {
+              updateNodeData(pendingNode.id, {
+                videoUrl: status.result,
+                status: 'succeeded',
+                isGenerating: false,
+              });
+              break;
+            }
+
+            updateNodeData(pendingNode.id, {
+              status: 'failed',
+              isGenerating: false,
+            });
+            break;
+          }
+        } finally {
+          activeGenerationPollNodeIdsRef.current.delete(`video-${pendingNode.id}`);
+        }
+      })();
+    }
+  }, [nodes, updateNodeData]);
+
+  useEffect(() => {
     const element = wrapperRef.current;
     if (!element) {
       return;

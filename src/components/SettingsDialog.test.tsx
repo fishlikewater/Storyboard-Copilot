@@ -83,7 +83,7 @@ describe('SettingsDialog', () => {
         {
           id: 'gateway-a',
           name: 'Acme Gateway',
-          protocol: 'openapi',
+          protocol: 'openapi', mediaType: 'image',
           baseUrl: 'https://sg2c.dchai.cn/v1',
           apiKey: 'token-1',
           models: [
@@ -117,7 +117,7 @@ describe('SettingsDialog', () => {
         {
           id: 'gateway-a',
           name: 'Acme Gateway',
-          protocol: 'openapi',
+          protocol: 'openapi', mediaType: 'image',
           baseUrl: 'https://sg2c.dchai.cn/v1',
           apiKey: 'token-1',
           models: [

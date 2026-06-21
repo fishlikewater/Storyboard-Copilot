@@ -54,6 +54,31 @@ export interface AiGateway {
     result?: string | null;
     error?: string | null;
   }>;
+  submitTextCompletionJob: (payload: {
+    prompt: string;
+    model: string;
+    providerRuntime?: RuntimeProviderConfig;
+  }) => Promise<string>;
+  getTextCompletionJob: (jobId: string) => Promise<{
+    job_id: string;
+    status: 'queued' | 'running' | 'succeeded' | 'failed' | 'not_found';
+    result?: string | null;
+    error?: string | null;
+  }>;
+  submitVideoGenerationJob: (payload: {
+    prompt: string;
+    model: string;
+    size: string;
+    aspectRatio: string;
+    referenceImages?: string[];
+    providerRuntime?: RuntimeProviderConfig;
+  }) => Promise<string>;
+  getVideoGenerationJob: (jobId: string) => Promise<{
+    job_id: string;
+    status: 'queued' | 'running' | 'succeeded' | 'failed' | 'not_found';
+    result?: string | null;
+    error?: string | null;
+  }>;
 }
 
 export interface ImageSplitGateway {

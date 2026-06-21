@@ -12,6 +12,10 @@ import {
   type StoryboardGenNodeData,
   type TextAnnotationNodeData,
   type UploadImageNodeData,
+  type StoryCardNodeData,
+  type ScriptNodeData,
+  type VideoCardNodeData,
+  type VideoResultNodeData,
 } from './canvasNodes';
 import { DEFAULT_NODE_DISPLAY_NAME } from './nodeDisplay';
 import { DEFAULT_IMAGE_MODEL_ID } from '../models';
@@ -251,6 +255,119 @@ const storyboardGenNodeDefinition: CanvasNodeDefinition<StoryboardGenNodeData> =
   }),
 };
 
+const storyCardNodeDefinition: CanvasNodeDefinition<StoryCardNodeData> = {
+  type: CANVAS_NODE_TYPES.storyCard,
+  menuLabelKey: 'node.menu.story',
+  menuIcon: 'text',
+  visibleInMenu: true,
+  capabilities: {
+    toolbar: true,
+    promptInput: false,
+  },
+  connectivity: {
+    sourceHandle: true,
+    targetHandle: true,
+    connectMenu: {
+      fromSource: true,
+      fromTarget: false,
+    },
+  },
+  createDefaultData: () => ({
+    displayName: DEFAULT_NODE_DISPLAY_NAME[CANVAS_NODE_TYPES.storyCard],
+    prompt: '',
+    model: '',
+    isGenerating: false,
+    generationStartedAt: null,
+    generationDurationMs: 60000,
+    generationJobId: null,
+  }),
+};
+
+const scriptNodeDefinition: CanvasNodeDefinition<ScriptNodeData> = {
+  type: CANVAS_NODE_TYPES.script,
+  menuLabelKey: 'node.menu.script',
+  menuIcon: 'text',
+  visibleInMenu: false,
+  capabilities: {
+    toolbar: true,
+    promptInput: false,
+  },
+  connectivity: {
+    sourceHandle: true,
+    targetHandle: true,
+    connectMenu: {
+      fromSource: true,
+      fromTarget: false,
+    },
+  },
+  createDefaultData: () => ({
+    displayName: DEFAULT_NODE_DISPLAY_NAME[CANVAS_NODE_TYPES.script],
+    content: '',
+    model: '',
+    isSplitting: false,
+  }),
+};
+
+const videoCardNodeDefinition: CanvasNodeDefinition<VideoCardNodeData> = {
+  type: CANVAS_NODE_TYPES.videoCard,
+  menuLabelKey: 'node.menu.video',
+  menuIcon: 'sparkles',
+  visibleInMenu: true,
+  capabilities: {
+    toolbar: true,
+    promptInput: false,
+  },
+  connectivity: {
+    sourceHandle: true,
+    targetHandle: true,
+    connectMenu: {
+      fromSource: true,
+      fromTarget: false,
+    },
+  },
+  createDefaultData: () => ({
+    displayName: DEFAULT_NODE_DISPLAY_NAME[CANVAS_NODE_TYPES.videoCard],
+    prompt: '',
+    model: '',
+    size: '2K' as ImageSize,
+    aspectRatio: DEFAULT_ASPECT_RATIO,
+    isGenerating: false,
+    generationStartedAt: null,
+    generationDurationMs: 120000,
+    generationJobId: null,
+  }),
+};
+
+const videoResultNodeDefinition: CanvasNodeDefinition<VideoResultNodeData> = {
+  type: CANVAS_NODE_TYPES.videoResult,
+  menuLabelKey: 'node.menu.videoResult',
+  menuIcon: 'upload',
+  visibleInMenu: false,
+  capabilities: {
+    toolbar: true,
+    promptInput: false,
+  },
+  connectivity: {
+    sourceHandle: false,
+    targetHandle: true,
+    connectMenu: {
+      fromSource: false,
+      fromTarget: false,
+    },
+  },
+  createDefaultData: () => ({
+    displayName: DEFAULT_NODE_DISPLAY_NAME[CANVAS_NODE_TYPES.videoResult],
+    videoUrl: null,
+    jobId: null,
+    status: 'running',
+    aspectRatio: DEFAULT_ASPECT_RATIO,
+    size: '2K' as ImageSize,
+    isRefreshing: false,
+    generationJobId: null,
+    isGenerating: true,
+  }),
+};
+
 export const canvasNodeDefinitions: Record<CanvasNodeType, CanvasNodeDefinition> = {
   [CANVAS_NODE_TYPES.upload]: uploadNodeDefinition,
   [CANVAS_NODE_TYPES.imageEdit]: imageEditNodeDefinition,
@@ -259,6 +376,10 @@ export const canvasNodeDefinitions: Record<CanvasNodeType, CanvasNodeDefinition>
   [CANVAS_NODE_TYPES.group]: groupNodeDefinition,
   [CANVAS_NODE_TYPES.storyboardSplit]: storyboardSplitDefinition,
   [CANVAS_NODE_TYPES.storyboardGen]: storyboardGenNodeDefinition,
+  [CANVAS_NODE_TYPES.storyCard]: storyCardNodeDefinition,
+  [CANVAS_NODE_TYPES.script]: scriptNodeDefinition,
+  [CANVAS_NODE_TYPES.videoCard]: videoCardNodeDefinition,
+  [CANVAS_NODE_TYPES.videoResult]: videoResultNodeDefinition,
 };
 
 export function getNodeDefinition(type: CanvasNodeType): CanvasNodeDefinition {

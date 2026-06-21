@@ -26,7 +26,7 @@ vi.mock('react-i18next', () => ({
 const openApiProvider: CustomProviderConfig = {
   id: 'gateway-a',
   name: 'Acme Gateway',
-  protocol: 'openapi',
+  protocol: 'openapi', mediaType: 'image',
   baseUrl: 'https://sg2c.dchai.cn/v1',
   apiKey: 'token-1',
   models: [
@@ -48,7 +48,7 @@ const openApiProvider: CustomProviderConfig = {
 const openAiImageProvider: CustomProviderConfig = {
   id: 'openai-images',
   name: 'OpenAI Images',
-  protocol: 'openai-image',
+  protocol: 'openai-image', mediaType: 'image',
   baseUrl: 'https://api.openai.com/v1',
   apiKey: 'sk-openai',
   connection: {

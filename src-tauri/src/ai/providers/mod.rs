@@ -3,7 +3,6 @@ use std::sync::Arc;
 use super::AIProvider;
 
 pub mod agnes;
-pub mod agnes;
 pub mod agnes_video;
 pub mod fal;
 pub mod grsai;
@@ -11,7 +10,8 @@ pub mod kie;
 pub mod openai_image;
 pub mod openapi_compat;
 pub mod ppio;
-pub use agnes_video::*;
+
+pub use agnes_video::AgnesVideoProvider;
 
 pub use agnes::*;
 pub use fal::FalProvider;

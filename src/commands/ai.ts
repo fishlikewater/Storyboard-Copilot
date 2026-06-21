@@ -207,3 +207,80 @@ export async function getGenerateImageJob(jobId: string): Promise<GenerationJobS
 export async function listModels(): Promise<string[]> {
   return await invoke('list_models');
 }
+
+export interface TextCompletionRequest {
+  prompt: string;
+  model: string;
+  provider_runtime?: RuntimeProviderConfig;
+}
+
+export interface TextCompletionJobStatus {
+  job_id: string;
+  status: GenerationJobState;
+  result?: string | null;
+  error?: string | null;
+}
+
+export async function submitTextCompletionJob(request: TextCompletionRequest): Promise<string> {
+  if (!isTauri()) {
+    throw new Error('当前不是 Tauri 容器环境，请使用 `npm run tauri dev` 启动');
+  }
+
+  const jobId = await invoke<string>('submit_text_completion_job', { request });
+  if (typeof jobId !== 'string' || !jobId.trim()) {
+    throw new Error('submit_text_completion_job returned invalid job id');
+  }
+  return jobId.trim();
+}
+
+export async function getTextCompletionJob(jobId: string): Promise<TextCompletionJobStatus> {
+  if (!isTauri()) {
+    throw new Error('当前不是 Tauri 容器环境，请使用 `npm run tauri dev` 启动');
+  }
+
+  const result = await invoke<TextCompletionJobStatus>('get_text_completion_job', { jobId });
+  if (!result || typeof result !== 'object' || typeof result.status !== 'string') {
+    throw new Error('get_text_completion_job returned invalid payload');
+  }
+  return result;
+}
+
+export interface VideoGenerationRequest {
+  prompt: string;
+  model: string;
+  size: string;
+  aspect_ratio: string;
+  reference_images?: string[];
+  provider_runtime?: RuntimeProviderConfig;
+}
+
+export interface VideoGenerationJobStatus {
+  job_id: string;
+  status: GenerationJobState;
+  result?: string | null;
+  error?: string | null;
+}
+
+export async function submitVideoGenerationJob(request: VideoGenerationRequest): Promise<string> {
+  if (!isTauri()) {
+    throw new Error('当前不是 Tauri 容器环境，请使用 `npm run tauri dev` 启动');
+  }
+
+  const jobId = await invoke<string>('submit_video_generation_job', { request });
+  if (typeof jobId !== 'string' || !jobId.trim()) {
+    throw new Error('submit_video_generation_job returned invalid job id');
+  }
+  return jobId.trim();
+}
+
+export async function getVideoGenerationJob(jobId: string): Promise<VideoGenerationJobStatus> {
+  if (!isTauri()) {
+    throw new Error('当前不是 Tauri 容器环境，请使用 `npm run tauri dev` 启动');
+  }
+
+  const result = await invoke<VideoGenerationJobStatus>('get_video_generation_job', { jobId });
+  if (!result || typeof result !== 'object' || typeof result.status !== 'string') {
+    throw new Error('get_video_generation_job returned invalid payload');
+  }
+  return result;
+}

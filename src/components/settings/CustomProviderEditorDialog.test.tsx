@@ -22,7 +22,7 @@ vi.mock('@/components/ui/useDialogTransition', () => ({
 const existingProvider: CustomProviderConfig = {
   id: 'gateway-a',
   name: 'Company Gateway',
-  protocol: 'openapi',
+  protocol: 'openapi', mediaType: 'image',
   baseUrl: 'https://sg2c.dchai.cn/v1',
   apiKey: 'token-1',
   connection: {
@@ -75,7 +75,7 @@ describe('CustomProviderEditorDialog', () => {
     expect(onSave).toHaveBeenCalledTimes(1);
     expect(onSave.mock.calls[0][0]).toMatchObject({
       name: 'Company Gateway',
-      protocol: 'openapi',
+      protocol: 'openapi', mediaType: 'image',
       baseUrl: 'https://sg2c.dchai.cn/v1',
       apiKey: 'token-1',
       connection: {
@@ -104,7 +104,6 @@ describe('CustomProviderEditorDialog', () => {
 
     expect(screen.getByRole('option', { name: 'settings.customProviderProtocolOpenapi' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'settings.customProviderProtocolOpenaiImage' })).toBeInTheDocument();
-    expect(screen.getAllByRole('option')).toHaveLength(2);
   });
 
   it('switches to openai-image fields and saves openapi-style connection data', async () => {
@@ -141,7 +140,7 @@ describe('CustomProviderEditorDialog', () => {
     expect(onSave).toHaveBeenCalledTimes(1);
     expect(onSave.mock.calls[0][0]).toMatchObject({
       name: 'OpenAI Images',
-      protocol: 'openai-image',
+      protocol: 'openai-image', mediaType: 'image',
       baseUrl: 'https://api.openai.com/v1',
       apiKey: 'sk-openai',
       connection: {

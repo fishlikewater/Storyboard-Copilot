@@ -6,6 +6,8 @@ import type {
   ResolutionOption,
   RuntimeImageModelDefinition,
   RuntimeModelProviderDefinition,
+  RuntimeTextModelDefinition,
+  RuntimeVideoModelDefinition,
 } from './types';
 import {
   buildCustomProviderModelId,
@@ -50,37 +52,39 @@ export function listRuntimeImageModels(
   customProviders: CustomProviderConfig[]
 ): RuntimeImageModelDefinition[] {
   const baseModel = getImageModel(DEFAULT_IMAGE_MODEL_ID);
-  const customs = customProviders.flatMap((provider) => {
-    const openapiConnection = resolveOpenApiConnection(provider);
+  const customs = customProviders
+    .filter((provider) => provider.mediaType === 'image')
+    .flatMap((provider) => {
+      const openapiConnection = resolveOpenApiConnection(provider);
 
-    return provider.models
-      .filter((model) => model.enabled)
-      .map<RuntimeImageModelDefinition>((model) => ({
-        ...baseModel,
-        id: buildCustomProviderModelId(provider.id, model.id),
-        displayName: model.displayName,
-        providerId: buildCustomRuntimeProviderId(provider.id),
-        description: `${provider.name} / ${model.remoteModelId}`,
-        resolutions: CUSTOM_RESOLUTION_OPTIONS,
-        defaultResolution: CUSTOM_RESOLUTION_OPTIONS[0].value,
-        resolveResolutions: () => CUSTOM_RESOLUTION_OPTIONS,
-        pricing: undefined,
-        resolveRequest: ({ referenceImageCount }) => ({
-          requestModel: buildCustomProviderModelId(provider.id, model.id),
-          modeLabel: referenceImageCount > 0 ? '编辑模式' : '生成模式',
-        }),
-        runtimeProvider: {
-          kind: 'custom-provider',
-          providerProfileId: provider.id,
-          providerDisplayName: provider.name,
-          protocol: provider.protocol,
-          baseUrl: openapiConnection.baseUrl,
-          apiKey: openapiConnection.apiKey,
-          remoteModelId: model.remoteModelId,
-        },
-        supportsResolutionSelection: true,
-      }));
-  });
+      return provider.models
+        .filter((model) => model.enabled)
+        .map<RuntimeImageModelDefinition>((model) => ({
+          ...baseModel,
+          id: buildCustomProviderModelId(provider.id, model.id),
+          displayName: model.displayName,
+          providerId: buildCustomRuntimeProviderId(provider.id),
+          description: `${provider.name} / ${model.remoteModelId}`,
+          resolutions: CUSTOM_RESOLUTION_OPTIONS,
+          defaultResolution: CUSTOM_RESOLUTION_OPTIONS[0].value,
+          resolveResolutions: () => CUSTOM_RESOLUTION_OPTIONS,
+          pricing: undefined,
+          resolveRequest: ({ referenceImageCount }) => ({
+            requestModel: buildCustomProviderModelId(provider.id, model.id),
+            modeLabel: referenceImageCount > 0 ? '编辑模式' : '生成模式',
+          }),
+          runtimeProvider: {
+            kind: 'custom-provider',
+            providerProfileId: provider.id,
+            providerDisplayName: provider.name,
+            protocol: provider.protocol,
+            baseUrl: openapiConnection.baseUrl,
+            apiKey: openapiConnection.apiKey,
+            remoteModelId: model.remoteModelId,
+          },
+          supportsResolutionSelection: true,
+        }));
+    });
 
   if (customs.length > 0) {
     return customs;
@@ -110,6 +114,77 @@ export function listRuntimeImageModels(
       supportsResolutionSelection: false,
     },
   ];
+}
+
+export function listRuntimeTextModels(
+  customProviders: CustomProviderConfig[]
+): RuntimeTextModelDefinition[] {
+  const customs = customProviders
+    .filter((provider) => provider.mediaType === 'text')
+    .flatMap((provider) => {
+      const openapiConnection = resolveOpenApiConnection(provider);
+
+      return provider.models
+        .filter((model) => model.enabled)
+        .map<RuntimeTextModelDefinition>((model) => ({
+          id: buildCustomProviderModelId(provider.id, model.id),
+          mediaType: 'text',
+          displayName: model.displayName,
+          providerId: buildCustomRuntimeProviderId(provider.id),
+          description: `${provider.name} / ${model.remoteModelId}`,
+          runtimeProvider: {
+            kind: 'custom-provider',
+            providerProfileId: provider.id,
+            providerDisplayName: provider.name,
+            protocol: provider.protocol,
+            baseUrl: openapiConnection.baseUrl,
+            apiKey: openapiConnection.apiKey,
+            remoteModelId: model.remoteModelId,
+          },
+        }));
+    });
+
+  return customs;
+}
+
+export function listRuntimeVideoModels(
+  customProviders: CustomProviderConfig[]
+): RuntimeVideoModelDefinition[] {
+  const customs = customProviders
+    .filter((provider) => provider.mediaType === 'video')
+    .flatMap((provider) => {
+      const openapiConnection = resolveOpenApiConnection(provider);
+
+      return provider.models
+        .filter((model) => model.enabled)
+        .map<RuntimeVideoModelDefinition>((model) => ({
+          id: buildCustomProviderModelId(provider.id, model.id),
+          mediaType: 'video',
+          displayName: model.displayName,
+          providerId: buildCustomRuntimeProviderId(provider.id),
+          description: `${provider.name} / ${model.remoteModelId}`,
+          defaultAspectRatio: '16:9',
+          defaultResolution: CUSTOM_RESOLUTION_OPTIONS[0].value,
+          aspectRatios: [
+            { value: '16:9', label: '16:9' },
+            { value: '9:16', label: '9:16' },
+            { value: '1:1', label: '1:1' },
+          ],
+          resolutions: CUSTOM_RESOLUTION_OPTIONS,
+          runtimeProvider: {
+            kind: 'custom-provider',
+            providerProfileId: provider.id,
+            providerDisplayName: provider.name,
+            protocol: provider.protocol,
+            baseUrl: openapiConnection.baseUrl,
+            apiKey: openapiConnection.apiKey,
+            remoteModelId: model.remoteModelId,
+          },
+          supportsResolutionSelection: true,
+        }));
+    });
+
+  return customs;
 }
 
 export function getRuntimeImageModel(
